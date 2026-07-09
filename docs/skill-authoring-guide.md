@@ -58,7 +58,7 @@ Define when the skill should stop and ask for human input:
 - Ambiguous material type
 - Missing required input
 - Confidence below threshold
-- High-risk operation (destruction, network access, execution)
+- High-impact operation, such as destructive writes, state-changing actions on original/live systems, or execution of untrusted samples outside an isolated environment
 
 ## Naming Conventions
 

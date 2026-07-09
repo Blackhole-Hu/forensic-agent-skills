@@ -22,10 +22,12 @@
 
 ---
 
-## Commit Log
+## AFK-Stage Commit Log
+
+> This section records the AFK task commits only. Later review-fix commits may exist on the same branch.
 
 ```
-843bc7d (HEAD -> bootstrap) docs: summarize afk migration work
+843bc7d docs: summarize afk migration work
 3d103cd feat: add phase 1 core skill drafts
 894db18 docs: add workflow standards and templates
 9312538 chore: create repository structure

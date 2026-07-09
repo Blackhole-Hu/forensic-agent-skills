@@ -22,10 +22,11 @@ forensic-autopilot
   → file-triage
   → large-artifact-strategy (if triggered)
   → forensic-router (based on triage_notes)
-  → evidence-ledger (writes throughout)
   → [domain-specific skills]
   → timeline-reconstruction (if needed)
   → answer-gate → report-writer
+
+evidence-ledger is written throughout the chain (side-channel), not a linear step.
 ```
 
 ## Migration Source

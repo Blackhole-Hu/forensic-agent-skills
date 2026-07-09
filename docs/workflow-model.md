@@ -52,7 +52,7 @@ Multiple paths can run in parallel for a single investigation.
 
 ## Evidence Flow
 
-The `evidence-ledger` is the central record. Every skill writes to it:
+The `evidence-ledger` is a **side-channel** that runs throughout the entire chain, not a linear step. Every skill writes to it as it operates; `answer-gate` and `report-writer` read from it at the end.
 
 ```
 evidence-ledger

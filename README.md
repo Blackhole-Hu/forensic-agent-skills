@@ -26,9 +26,10 @@ forensic-autopilot        →  orchestrate the full chain
   forensic-router       →  route material to the right path based on triage_notes
   [domain-specific skills] → server / recovery / timeline / competition
   timeline-reconstruction → merge events from multiple sources (if needed)
-  evidence-ledger       →  record every artifact, action, and hash (throughout)
   answer-gate           →  five-step validation before any conclusion is submitted
   report-writer         →  structured output with evidence citations
+
+evidence-ledger is written throughout the chain and read by answer-gate/report-writer.
 ```
 
 ## Skill Categories
@@ -54,7 +55,7 @@ Migrating from `E:\CompetitionTools\skills` (41 skills) in four phases. See [`do
 
 | Phase | Scope | Status |
 |-------|-------|--------|
-| **Phase 1** | Core control loop (9 modules) | In progress |
+| **Phase 1** | Core control loop (9 modules) | Drafts created; under review |
 | **Phase 2** | Server forensic chain (10 modules) | Pending |
 | **Phase 3** | Uncommon media & recovery (5 modules) | Pending |
 | **Phase 4** | Competition-specific output (2 modules) | Pending |

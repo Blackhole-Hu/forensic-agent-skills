@@ -59,7 +59,7 @@ The minimum viable chain that can run an end-to-end forensic workflow. 9 modules
 | 10 | `server-forensics-router` | `skills/server/server-forensics-router/` | migrate as-is | **服务器取证总入口**。模式选择：rebuild-and-connect / remote-live / offline-image / hybrid-cluster。含 CHECKLIST.md、REVIEW.md。 |
 | 11 | `server-rebuild-planner` | `skills/server/server-rebuild-planner/` | migrate as-is | 重建规划。VMware/QEMU/VirtualBox/Docker 路径规划、网络策略、回滚计划。 |
 | 12 | `server-rebuild-executor` | `skills/server/server-rebuild-executor/` | migrate + **needs-refactor** | **主闭环成员**，但需强化：Stage 0–6 阶段划分、Preflight 工具能力检查、Failure Recovery 自动回退、日志状态文件（记录每阶段执行状态）。当前实现偏薄。 |
-| 13 | `remote-server-live-response` | `skills/server/remote-server-live-response/` | migrate as-is | **活体服务器采集入口**。SSH / WebUI / DB client / Docker exec / WinRM / RDP 连接后的只读采集。含 CHECKLIST.md、REVIEW.md。 |
+| 13 | `remote-server-live-response` | `skills/server/remote-server-live-response/` | migrate as-is | **活体服务器采集入口**。SSH / WebUI / DB client / Docker exec / WinRM / RDP 连接后的低扰动、命令留痕活体采集。含 CHECKLIST.md、REVIEW.md。 |
 | 14 | `linux-server-forensics` | `skills/server/linux-server-forensics/` | migrate as-is | Linux 系统层取证。账号、SSH、history、cron、systemd、持久化。 |
 | 15 | `webapp-server-forensics` | `skills/server/webapp-server-forensics/` | migrate as-is | Web/API 取证。Nginx/Apache/IIS/Tomcat/Flask/Spring/PHP/Node。 |
 | 16 | `database-server-forensics` | `skills/server/database-server-forensics/` | migrate as-is | 数据库取证。MySQL/PostgreSQL/Redis/MongoDB/SQLite/binlog/RDB/AOF。 |
