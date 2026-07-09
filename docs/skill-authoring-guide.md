@@ -18,7 +18,7 @@ Every skill lives in its own directory under `skills/<category>/<skill-name>/` a
 
 Use `templates/skill-template.md` as the starting point. Required sections:
 
-1. **YAML frontmatter** — name, description, disable-model-invocation
+1. **YAML frontmatter** — must include `name` and `description`; runtime-specific fields such as `disable-model-invocation` are optional and must be verified against the target agent before being required by this project
 2. **Purpose** — one paragraph, what this skill does
 3. **Use When** — triggers and preconditions
 4. **Inputs** — what the skill needs to start

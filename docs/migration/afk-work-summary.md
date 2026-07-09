@@ -148,9 +148,7 @@
 
 ### Q1: evidence-ledger 格式
 
-当前设计为 Markdown 表格，一个调查一个文件。是否需要改为 JSON Lines 或 YAML 以支持机器解析？
-
-**Current decision**: Markdown（人类可读优先）
+**Current decision**: Dual-format — Markdown (`evidence-ledger.md`) for human review primary view, JSONL (`evidence-ledger.jsonl`) for machine validation log. Both formats record the same entries; skills write to both simultaneously. `answer-gate` prefers JSONL for structured checks; `report-writer` references Markdown for report appendices.
 
 ### Q2: forensic-router vs server-forensics-router 边界
 

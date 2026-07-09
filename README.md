@@ -20,13 +20,15 @@ The skills are **evidence-first**: every conclusion must cite a file, command ou
 
 ```
 forensic-autopilot        →  orchestrate the full chain
-  forensic-router         →  route material to the right path
-    tool-router           →  select execution environment (Windows/WSL/Docker/VMware/QEMU)
-    file-triage           →  first-pass file identification and classification
-    large-artifact-strategy → handle 1GB+ images, disk dumps, encrypted containers
-    evidence-ledger       →  record every artifact, action, and hash
-    answer-gate           →  five-step validation before any conclusion is submitted
-    report-writer         →  structured output with evidence citations
+  tool-router           →  select execution environment (Windows/WSL/Docker/VMware/QEMU)
+  file-triage           →  first-pass file identification and classification
+  large-artifact-strategy → handle 1GB+ images, disk dumps, encrypted containers (if triggered)
+  forensic-router       →  route material to the right path based on triage_notes
+  [domain-specific skills] → server / recovery / timeline / competition
+  timeline-reconstruction → merge events from multiple sources (if needed)
+  evidence-ledger       →  record every artifact, action, and hash (throughout)
+  answer-gate           →  five-step validation before any conclusion is submitted
+  report-writer         →  structured output with evidence citations
 ```
 
 ## Skill Categories

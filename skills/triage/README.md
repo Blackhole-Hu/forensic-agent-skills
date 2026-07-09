@@ -12,7 +12,7 @@ First-pass classification, routing, and handling of incoming material.
 
 ## Relationship to Core
 
-Triage skills are called by `forensic-router` after the autopilot receives input. They classify material and route it to the appropriate analysis chain (server, recovery, timeline, etc.).
+Triage skills are called by `forensic-autopilot` early in the chain, before `forensic-router`. `file-triage` produces `material_type`, `hash`, and `triage_notes`; `forensic-router` then uses `triage_notes` to make the final path decision.
 
 ## Migration Source
 

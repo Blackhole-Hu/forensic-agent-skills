@@ -56,7 +56,7 @@ Negative evidence prevents confirmation bias and strengthens the investigation.
 
 For each artifact, the evidence ledger tracks:
 1. **Acquisition** — how and when the artifact was obtained
-2. **Handling** — what operations were performed (all read-only by default)
+2. **Handling** — what operations were performed, with original artifacts preserved and any state-changing work isolated to working copies, reconstructed environments, or explicitly recorded sessions
 3. **Storage** — where working copies reside
 4. **Integrity** — hash verification at each stage
 

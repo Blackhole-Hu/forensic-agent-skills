@@ -6,7 +6,7 @@ Multi-source event timeline reconstruction.
 
 | Skill | Purpose | Status |
 |-------|---------|--------|
-| `timeline-reconstruction/` | Merge events from server logs, PCAP, file timestamps, browser history, DB records, container logs | Draft (Phase 1/2) |
+| `timeline-reconstruction/` | Merge events from server logs, PCAP, file timestamps, browser history, DB records, container logs | Pending (Phase 2) |
 
 ## Design Principle
 

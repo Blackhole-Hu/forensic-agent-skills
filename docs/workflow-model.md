@@ -15,15 +15,17 @@ User / Competition Input
     ↓
 forensic-autopilot          ← orchestrate the full chain
     ↓
-forensic-router             ← route material to the correct path
-    ↓
 tool-router                 ← select execution environment
     ↓
 file-triage                 ← classify and hash incoming material
     ↓
-large-artifact-strategy     ← handle 1GB+ files, disk images, containers
+large-artifact-strategy     ← handle 1GB+ files, disk images, containers (if triggered)
+    ↓
+forensic-router             ← route material to the correct path based on triage_notes
     ↓
 [domain-specific skills]    ← server / recovery / timeline / competition
+    ↓
+timeline-reconstruction     ← merge events from multiple sources (if needed)
     ↓
 answer-gate                 ← five-step validation
     ↓

@@ -18,10 +18,13 @@ Core control loop skills that form the backbone of every forensic workflow.
 
 ```
 forensic-autopilot
-  → forensic-router → tool-router
-  → file-triage → large-artifact-strategy
+  → tool-router
+  → file-triage
+  → large-artifact-strategy (if triggered)
+  → forensic-router (based on triage_notes)
   → evidence-ledger (writes throughout)
   → [domain-specific skills]
+  → timeline-reconstruction (if needed)
   → answer-gate → report-writer
 ```
 

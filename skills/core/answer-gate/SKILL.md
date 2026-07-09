@@ -15,7 +15,7 @@ answer-gate 是提交前的最后一道校验。它从 evidence-ledger 读取所
 ## Use When
 
 - 准备提交答案、flag、结论前（必经步骤）
-- forensic-autopilot 的 Step 6（Validate）
+- forensic-autopilot 的 Step 7（Validate）
 - 任何 skill 准备输出最终结论前
 
 ## Inputs
@@ -24,7 +24,7 @@ answer-gate 是提交前的最后一道校验。它从 evidence-ledger 读取所
 |-------|----------|-------------|
 | `question` | Yes | 原始问题或目标 |
 | `proposed_answer` | Yes | 拟提交的答案 |
-| `evidence_ledger` | Yes | 完整的证据记录 |
+| `evidence_ledger` | Yes | 完整的证据记录（优先读取 `evidence-ledger.jsonl`；JSONL 不存在时回退到 `evidence-ledger.md`） |
 
 ## Outputs
 

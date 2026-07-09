@@ -1,7 +1,6 @@
 ---
 name: <skill-name>
 description: <one-line description>
-disable-model-invocation: <true|false>
 ---
 
 # <Skill Name>
