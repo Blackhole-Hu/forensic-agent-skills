@@ -14,15 +14,19 @@
 | **Stage 2** | 创建项目骨架 | `9312538` chore: create repository structure | 13 files, +220 |
 | **Stage 3** | 创建核心文档和模板 | `894db18` docs: add workflow standards and templates | 10 files, +635 |
 | **Stage 4** | 迁移 Phase 1 核心 skill 草案 | `3d103cd` feat: add phase 1 core skill drafts | 9 files, +1031 |
+| **Stage 5** | 最终自检和 AFK 总结 | `843bc7d` docs: summarize afk migration work | 1 file, +183 |
 
-**Total**: 4 commits, 39 files changed, +2354 lines
+**Total**: 5 commits, 40 files changed, +2537 lines, -1 line
+
+> **Self-reference note**: This summary file was written during Stage 5 before its own commit. The commit log below reflects the actual state after all 5 commits were created.
 
 ---
 
 ## Commit Log
 
 ```
-3d103cd (HEAD -> bootstrap) feat: add phase 1 core skill drafts
+843bc7d (HEAD -> bootstrap) docs: summarize afk migration work
+3d103cd feat: add phase 1 core skill drafts
 894db18 docs: add workflow standards and templates
 9312538 chore: create repository structure
 674c276 docs: initialize migration plan and agent rules

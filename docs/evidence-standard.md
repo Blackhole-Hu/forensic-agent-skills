@@ -60,9 +60,22 @@ For each artifact, the evidence ledger tracks:
 3. **Storage** — where working copies reside
 4. **Integrity** — hash verification at each stage
 
+## Dual-Format Design
+
+The evidence ledger uses two complementary formats:
+
+| Format | File | Purpose |
+|--------|------|---------|
+| **Markdown** | `evidence-ledger.md` | Human review primary view — readable, printable, editable |
+| **JSONL** | `evidence-ledger.jsonl` | Machine validation log — structured, queryable, append-only |
+
+- `answer-gate` **prefers JSONL** for structured validation (field completeness, cross-reference checks)
+- `report-writer` **references Markdown** for human-readable report appendices
+- Both formats record the same entries; skills write to both simultaneously
+
 ## Validation
 
-The `answer-gate` skill checks:
+The `answer-gate` skill checks (prefer JSONL, fall back to Markdown):
 1. Every cited finding has at least one evidence entry
 2. Evidence entries reference actual artifacts (not hallucinated paths)
 3. Hash values match where claimed

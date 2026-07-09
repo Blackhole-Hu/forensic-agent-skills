@@ -83,7 +83,8 @@ forensic-agent-skills/
 - [x] Repository bootstrapped
 - [x] Agent configuration (`AGENTS.md`, `docs/agents/`)
 - [x] Migration inventory (`docs/migration/old-skills-inventory.md`)
-- [ ] Phase 1 — Core control loop
+- [x] Phase 1 — Core control loop drafts
+- [ ] Phase 1 — Human review and refinement
 - [ ] Phase 2 — Server forensic chain
 - [ ] Phase 3 — Uncommon media & recovery
 - [ ] Phase 4 — Competition-specific output

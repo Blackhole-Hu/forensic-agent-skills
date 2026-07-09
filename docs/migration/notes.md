@@ -10,7 +10,7 @@ The evidence-ledger is a new module not directly from an old skill. Need to deci
 - Storage: single file per investigation or append-only log?
 - Integration: how do skills write to it (template, function call, or convention)?
 
-**Current decision**: Markdown-based, one file per investigation, skills write entries following the template in `templates/evidence-ledger.md`.
+**Current decision**: Dual-format — Markdown for human review primary view, JSONL for machine validation log. Both formats record the same entries; skills write to both simultaneously. `answer-gate` prefers JSONL for structured checks; `report-writer` references Markdown for report appendices.
 
 ### Q2: forensic-router vs server-forensics-router boundary
 `forensic-router` is the new generic router. `server-forensics-router` is the old server-specific router. Need to clarify:
@@ -54,3 +54,15 @@ Generic report output is part of the core control loop. Competition-specific tem
 ## Blocked Items
 
 None currently.
+
+## Phase 1 Notes
+
+- Phase 1 currently includes SKILL.md drafts only.
+- CHECKLIST.md and REVIEW.md from old skills are not yet migrated.
+- They will be handled in a later quality pass.
+
+### Q5: Frontmatter schema
+- Current drafts use `disable-model-invocation` in YAML frontmatter.
+- This field is used by some mattpocock skills (`ask-matt`, `setup-matt-pocock-skills`) but not all.
+- Need to verify whether Reasonix recognizes this field.
+- If not, replace with the supported schema or remove nonstandard fields.

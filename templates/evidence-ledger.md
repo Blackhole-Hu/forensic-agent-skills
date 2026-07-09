@@ -1,8 +1,12 @@
-# Evidence Ledger
+# Evidence Ledger (Markdown — Human Review Primary View)
 
 **Investigation**: <investigation name or ID>
 **Date**: <YYYY-MM-DD>
 **Investigator**: <agent or human name>
+
+> **Dual format**: This Markdown file is the human review primary view.
+> The companion `evidence-ledger.jsonl` is the machine validation log.
+> `answer-gate` prefers JSONL for structured checks; `report-writer` references this Markdown for report appendices.
 
 ## Artifacts
 
