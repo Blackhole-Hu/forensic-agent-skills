@@ -159,8 +159,14 @@ payload:
 | rootfs/distro 或适合 WSL 复现的 Linux 应用 | `wsl` | WSL 可用；不用于任意完整服务器镜像 |
 | 特殊格式或需要 GUI/取证工具 | `manual` | 需要手动操作 |
 
-- `tool_capability_report` 存在时，`backend_selection_status` 为 `confirmed` 。
-- 需要 executor Stage 0 验证时，`backend_selection_status` 为 `provisional` ，并列出 `backend_candidates`。
+- `tool_capability_report` 存在时，`backend_selection_status` 仅在以下条件全部满足时才为 `confirmed`：
+  - 报告属于当前执行环境；
+  - 报告未过期；
+  - 明确包含目标 backend；
+  - 对应运行程序状态为 `available`；
+  - 所需格式工具状态为 `available`；
+  - 所有 `required capabilities` 都有明确 `available` 结果。
+- 上述任一条件不满足时保持 `provisional`，由 Executor Stage 0 重新调用 `tool-router` 验证。
 - 所有候选后端不可用时，`selected_backend` 为 `null`，`backend_selection_status` 为 `unavailable`。
 
 生成 `backend_profile`：记录该 backend 需要的特定参数。
@@ -282,6 +288,24 @@ recovery_policy:
 
 `blocked` 不触发 `execution_gate`——它表示计划无法执行，应设置 `route_status: blocked` 并通知上游。
 
+### Reentry from Executor
+
+当 executor 返回 planner 重新规划时：
+
+- executor `step.status` 为 `blocked` 或 `failed`
+- 本 skill reentry `step.status` 设为 `pending`
+- `handoff.status` 设为 `pending`
+- `route_status` 保持 `active`
+- `reentry_reason` 必须记录 `operation` 和 `error_class`
+- `new_evidence_refs` 引用 executor 本轮 Ledger Event
+
+只有以下情况 `route_status` 才为 `blocked`：
+
+- 没有允许的 replan 路径
+- `hop_count` 超限
+- `execution_gate` 未解决
+- 缺少任何可继续输入
+
 ### Planner-Executor Boundary
 
 | 维度 | Planner（本 skill） | Executor（server-rebuild-executor） |
@@ -366,6 +390,9 @@ Handoff 结构细节保存在 `route_record.handoffs`，Ledger Event 只引用 `
 - [ ] Investigation Summary 的 Route Plan 从 `route_record.route_plan` 渲染
 - [ ] `request.payload` 可接收 `tool_capability_report`
 - [ ] `recovery_policy` 中 `fallback_backends` 属于 `execution_scope.fallback_backends`
+- [ ] `backend_selection_status=confirmed` 需要完整工具和能力验证，不凭 `tool_capability_report` 存在推断
+- [ ] reentry 时 `handoff.status=pending`，`reentry_reason` 明确记录 `operation/error_class`
+- [ ] `route_status=blocked` 仅在无 replan 路径、hop 超限、execution_gate 未解或输入缺失时设置
 
 ## Notes
 

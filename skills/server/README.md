@@ -10,7 +10,7 @@ See `docs/data-contracts.md` for unified request/response contracts and `templat
 |-------|---------|--------|
 | `server-forensics-router/` | Server forensics entry, mode selection | Completed |
 | `server-rebuild-planner/` | Rebuild planning (feasibility, backend, recovery policy) | Completed |
-| `server-rebuild-executor/` | Rebuild execution (Stage 0-6) | Pending |
+| `server-rebuild-executor/` | Rebuild execution (Stage 0-6) | Completed |
 | `remote-server-live-response/` | Live server acquisition via SSH/Docker/WinRM/RDP | Pending |
 | `linux-server-forensics/` | Linux system-level forensics | Pending |
 | `webapp-server-forensics/` | Web/API forensics (Nginx/Apache/PHP/Node) | Pending |

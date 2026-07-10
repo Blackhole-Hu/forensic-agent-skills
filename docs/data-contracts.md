@@ -267,10 +267,18 @@ payload:
 
 ```yaml
 payload:
+  plan_id: "plan-<uuid>"
+  plan_status: draft|ready|blocked|rejected
   rebuild_feasibility: yes|no|partial|blocked
-  rebuild_method: vmware|qemu|virtualbox|docker|wsl|manual
+  selected_backend: vmware|qemu|virtualbox|docker|wsl|manual|null
+  backend_selection_status: confirmed|provisional|unavailable
+  backend_candidates: array
+  selection_basis: array
+  backend_profile: object
   required_inputs: array
   missing_inputs: array
+  prepared_artifact_requirements: array
+  resource_requirements: object
   network_mode: host-only|nat|isolated|bridge|backend-default|none
   port_mapping: object|null
   credential_source: string|null
@@ -279,15 +287,29 @@ payload:
   modification_plan: string
   rollback_plan: string
   recovery_policy: object
+  execution_scope: object
+  executor_handoff: object|null
 ```
 
 ### 8.3 server-rebuild-executor
 
 ```yaml
 payload:
-  rebuild_status: object     # 符合 rebuild-status.schema.json
+  plan_id: "plan-<uuid>"
+  rebuild_status: object
+  rebuild_status_path: "work/rebuild/rebuild-status.json"
+  overall_status: pending|in_progress|blocked|partial|completed|failed|rolled_back
+  current_stage: 0|1|2|3|4|5|6
+  prepared_artifacts: array
+  runtime_definition: object|null
+  runtime_instance: object|null
   runtime_running: boolean
-  connection_info: object
+  network_config: object|null
+  services_discovered: array
+  connection_info:
+    connections: array
+  recovery_actions: array
+  blockers: array
 ```
 
 ### 8.4 remote-server-live-response
