@@ -1,16 +1,21 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:forensic-agent-skills:schema:request-envelope:1.0",
   "title": "Request Envelope",
   "description": "Phase 2 统一请求信封格式",
   "type": "object",
-  "required": ["request"],
+  "additionalProperties": false,
+  "required": ["schema_version", "request"],
   "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
     "request": {
       "type": "object",
-      "required": ["material_info", "objective_status", "payload"],
+      "additionalProperties": false,
+      "required": ["material_info", "objective", "objective_status", "context", "payload"],
       "properties": {
         "material_info": {
           "type": "object",
+          "additionalProperties": false,
           "required": ["artifact_refs", "material_type", "triage_notes"],
           "properties": {
             "artifact_refs": {
@@ -27,10 +32,11 @@
             },
             "size_summary": {
               "type": ["object", "null"],
+              "additionalProperties": false,
               "properties": {
-                "total_bytes": { "type": ["integer", "null"] },
-                "file_count": { "type": ["integer", "null"] },
-                "largest_file_bytes": { "type": ["integer", "null"] }
+                "total_bytes": { "type": ["integer", "null"], "minimum": 0 },
+                "file_count": { "type": ["integer", "null"], "minimum": 0 },
+                "largest_file_bytes": { "type": ["integer", "null"], "minimum": 0 }
               }
             }
           }

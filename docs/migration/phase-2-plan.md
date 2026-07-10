@@ -786,52 +786,63 @@ linux-server-forensics (分析系统层)
 ```yaml
 request:
   material_info:
-    object  # 来自 file-triage / forensic-router
+    artifact_refs: array       # artifact-<uuid> 引用
+    material_type: string
+    triage_notes: array
+    size_summary: object|null
   objective: string|null
   objective_status: enum[explicit, inferred, unknown]
   context: object|null
-  payload:
-    material_type: string
-    file_list: array
-    hash: string
-    size: integer
-    triage_notes: string
+  payload: {}                  # server-forensics-router 无专项载荷
 ```
 
-**输出契约**：
+**输出契约**（遵循 Response Envelope，专项结果在 `payload` 中）：
 ```yaml
-investigation_summary: object
+schema_version: "1.0"
+investigation_summary:
+  current_assessment: string
+  key_evidence: array
+  excluded_routes: array
 route_record:
   route_id: "route-<uuid>"
   triggered_skill: "server-forensics-router"
   route_basis: array
-  mode_decision: enum[rebuild-and-connect, remote-live, offline-image, hybrid-cluster, pending]
+  mode_decision: string|null
+  route_status: active|completed|blocked|failed|cancelled
   route_plan:
-    - skill: string
-      dependency: string|null
-      parallel: boolean
+    - route_step_id: "step-<uuid>"
+      skill: string
+      dependency_step_ids: array
+      parallel_group: string|null
+      status: pending|running|completed|blocked|failed|skipped
   handoffs:
     - handoff_id: "hof-<uuid>"
       route_id: "route-<uuid>"
-      from: "server-forensics-router"
+      from_step_id: "step-<uuid>"
+      to_step_id: "step-<uuid>"
+      from: string
       to: string
       reason: string
       artifact_refs: []
       finding_refs: []
-      visited_skills: ["server-forensics-router"]
+      visited_skills: []
       hop_count: 1
       status: pending|accepted|completed|rejected|blocked
       priority: critical|high|normal|low
   evidence_scope: string
-  risk_level: enum[low, medium, high]
-  next_action: string
+  risk_level: low|medium|high
+  next_action: string|null
   execution_gate:
     required: boolean
     reason: string|null
     policy_ref: string|null
+  routing_policy:
+    max_hops: 16
 findings: array
 ledger_events: array
 artifact_refs: array
+payload:
+  mode_decision: rebuild-and-connect|remote-live|offline-image|hybrid-cluster|pending
 ```
 
 ---
@@ -860,19 +871,22 @@ request:
 ```yaml
 investigation_summary: object
 route_record: object
-rebuild_feasibility: enum[yes, no, partial, blocked]
-rebuild_method: enum[vmware, qemu, virtualbox, docker, wsl, manual]
-required_inputs: array
-missing_inputs: array
-network_mode: enum[host-only, nat, isolated, bridge]
-port_mapping: object
-credential_source: string
-modification_plan: string
-rollback_plan: string
-recovery_policy: object   # 按 operation 分类（见第六节）
 findings: array
 ledger_events: array
 artifact_refs: array
+payload:
+  rebuild_feasibility: yes|no|partial|blocked
+  rebuild_method: vmware|qemu|virtualbox|docker|wsl|manual
+  required_inputs: array
+  missing_inputs: array
+  network_mode: host-only|nat|isolated|bridge|backend-default|none
+  port_mapping: object|null
+  credential_source: string|null
+  credential_reference: string|null
+  authentication_method: string|null
+  modification_plan: string
+  rollback_plan: string
+  recovery_policy: object   # 符合 recovery-policy.schema.json
 ```
 
 ---
@@ -898,16 +912,18 @@ request:
     rebuild_plan: object  # 来自 server-rebuild-planner
 ```
 
-**输出契约**：
+**输出契约**（遵循 Response Envelope，专项结果在 `payload` 中）：
 ```yaml
+schema_version: "1.0"
 investigation_summary: object
 route_record: object
-rebuild_status: object    # 符合 rebuild-status.schema.json
-runtime_running: boolean
-connection_info: object   # SSH/WebUI/DB/Docker 连接信息
 findings: array
 ledger_events: array
 artifact_refs: array
+payload:
+  rebuild_status: object    # 符合 rebuild-status.schema.json
+  runtime_running: boolean
+  connection_info: object   # SSH/WebUI/DB/Docker 连接信息
 ```
 
 ---
@@ -928,24 +944,28 @@ request:
   objective_status: enum[explicit, inferred, unknown]
   context: object|null
   payload:
-    connection_info: object   # SSH/WebUI/DB/Docker/WinRM/RDP 连接信息
-      - type: enum[ssh, webui, db-client, docker-exec, winrm, rdp, service-client]
-      - host: string
-      - port: integer
-    credential_source: string       # 凭据来源描述
-    credential_reference: string    # 凭据引用（如 "题目附件 config.yml:password 字段"），不记录实际值
-    authentication_method: enum[password, key, token, certificate]
+    connections:              # 支持多个连接
+      - connection_id: string
+        type: ssh|webui|db-client|docker-exec|winrm|rdp|service-client
+        host: string
+        port: integer
+        service: string|null
+        credential_source: string|null
+        credential_reference: string|null
+        authentication_method: password|key|token|certificate|interactive|none
 ```
 
-**输出契约**：
+**输出契约**（遵循 Response Envelope，专项结果在 `payload` 中）：
 ```yaml
+schema_version: "1.0"
 investigation_summary: object
 route_record: object
-session_summary: string
-volatile_data: array
 findings: array
 ledger_events: array
 artifact_refs: array
+payload:
+  session_summary: string
+  volatile_data: array
 ```
 
 ---
@@ -1018,24 +1038,22 @@ request:
     log_paths: array              # 日志文件路径列表
 ```
 
-**输出契约**：
+**输出契约**（遵循 Response Envelope，专项结果在 ``payload`` 中）：
 ```yaml
+schema_version: "1.0"
 investigation_summary: object
 route_record: object
-route_map: array
-secret_findings:              # 统一 secret 格式
-  - secret_type: string       # jwt-secret|api-key|password|...
-    redacted_value: string    # 脱敏后的值
-    source_ref: string        # 来源路径
-    evidence_ref: string      # led-<uuid>
-access_log_findings: array
-suspected_entrypoint: string|null
-suspect_ip: string|null
-webshell_candidate: array
-source_log_crosscheck: object
 findings: array
 ledger_events: array
 artifact_refs: array
+payload:
+  route_map: array
+  secret_findings: array      # 每项: secret_type, redacted_value, source_ref, evidence_ref
+  access_log_findings: array
+  suspected_entrypoint: string|null
+  suspect_ip: string|null
+  webshell_candidate: array
+  source_log_crosscheck: object
 ```
 
 ---
@@ -1067,31 +1085,23 @@ request:
 
 `access_mode` 说明：具体是 binlog、WAL、AOF 或 RDB，由 `db_type` + `access_mode` 联合判断。
 
-**输出契约**：
+**输出契约**（遵循 Response Envelope，专项结果在 ``payload`` 中）：
 ```yaml
+schema_version: "1.0"
 investigation_summary: object
 route_record: object
-db_type: string
-table_map: array
-query_plan: array
-query_result_refs:            # 结果引用，不内嵌原始数据
-  - query_id: string
-    query: string
-    target: string            # 表/库
-    output_path: string       # 结果文件路径
-    output_hash: string       # 结果文件 hash
-    row_count: integer
-account_findings: array
-business_data_findings: array
-secret_findings:              # 统一 secret 格式
-  - secret_type: string
-    redacted_value: string
-    source_ref: string
-    evidence_ref: string
-db_timeline_findings: array
 findings: array
 ledger_events: array
 artifact_refs: array
+payload:
+  db_type: string
+  table_map: array
+  query_plan: array
+  query_result_refs: array    # 每项: query_id, query, target, output_path, output_hash, row_count
+  account_findings: array
+  business_data_findings: array
+  secret_findings: array      # 每项: secret_type, redacted_value, source_ref, evidence_ref
+  db_timeline_findings: array
 ```
 
 ---
@@ -1124,24 +1134,22 @@ request:
     source_paths: array                # 相关源文件路径
 ```
 
-**输出契约**：
+**输出契约**（遵循 Response Envelope，专项结果在 ``payload`` 中）：
 ```yaml
+schema_version: "1.0"
 investigation_summary: object
 route_record: object
-compose_service_map: array
-image_map: array
-volume_map: array
-bind_mount_map: array
-port_map: object
-secret_findings:              # 统一 secret 格式
-  - secret_type: string
-    redacted_value: string
-    source_ref: string
-    evidence_ref: string
-log_findings: array
 findings: array
 ledger_events: array
 artifact_refs: array
+payload:
+  compose_service_map: array
+  image_map: array
+  volume_map: array
+  bind_mount_map: array
+  port_map: object
+  secret_findings: array      # 每项: secret_type, redacted_value, source_ref, evidence_ref
+  log_findings: array
 ```
 
 ---
@@ -1167,20 +1175,22 @@ request:
     layer_hint: string|null
 ```
 
-**输出契约**：
+**输出契约**（遵循 Response Envelope，专项结果在 ``payload`` 中）：
 ```yaml
+schema_version: "1.0"
 investigation_summary: object
 route_record: object
-layer_map: object         # source artifact -> disk -> partition -> storage -> VM -> service
-node_map: object|null
-disk_map: object|null
-vm_disk_map: object|null
-storage_map: object|null
-real_image_found: boolean
-placeholder_only: boolean
 findings: array
 ledger_events: array
 artifact_refs: array
+payload:
+  layer_map: object         # source artifact -> disk -> partition -> storage -> VM -> service
+  node_map: object|null
+  disk_map: object|null
+  vm_disk_map: object|null
+  storage_map: object|null
+  real_image_found: boolean
+  placeholder_only: boolean
 ```
 
 ---
@@ -1208,22 +1218,27 @@ request:
     data_sources: array       # 数据源列表
       - type: enum[auth-log, journal, web-log, docker-log, db-transaction-log, db-snapshot, login-record, file-time, pve-log, ceph-log]
       - path: string
-      - timezone: string|null
+      - timezone_hint:
+          offset: string|null   # ±HH:MM 格式
+          name: string|null
+          assumption: string|null
     time_range: object|null   # 时间范围过滤
 ```
 
-**输出契约**：
+**输出契约**（遵循 Response Envelope，专项结果在 ``payload`` 中）：
 ```yaml
+schema_version: "1.0"
 investigation_summary: object
 route_record: object
-timeline: array           # 统一时间线（见第八节 8.2 event 格式）
-event_count: integer
-source_count: integer
-gaps: array               # 时间线中的空白
-anomalies: array          # 异常事件
 findings: array
 ledger_events: array
 artifact_refs: array
+payload:
+  timeline: array           # 符合 timeline-event.schema.json
+  event_count: integer
+  source_count: integer
+  gaps: array
+  anomalies: array
 ```
 
 ---

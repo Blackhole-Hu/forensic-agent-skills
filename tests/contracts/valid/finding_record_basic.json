@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0",
+  "finding_id": "finding-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  "description": "Suspicious SSH key found",
+  "confidence": "high",
+  "evidence_refs": ["led-a1b2c3d4-e5f6-7890-abcd-ef1234567890"],
+  "artifact_refs": ["artifact-11111111-2222-3333-4444-555555555555"],
+  "category": "analysis",
+  "related_skill": "linux-server-forensics",
+  "created_at": "2026-07-10T12:00:00Z"
+}

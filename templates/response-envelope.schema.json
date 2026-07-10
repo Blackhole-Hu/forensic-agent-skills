@@ -1,13 +1,17 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:forensic-agent-skills:schema:response-envelope:1.0",
   "title": "Response Envelope",
   "description": "Phase 2 统一响应信封格式",
   "type": "object",
-  "required": ["investigation_summary", "route_record", "findings", "ledger_events", "artifact_refs", "payload"],
+  "additionalProperties": false,
+  "required": ["schema_version", "investigation_summary", "route_record", "findings", "ledger_events", "artifact_refs", "payload"],
   "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
     "investigation_summary": {
       "type": "object",
-      "required": ["current_assessment"],
+      "additionalProperties": false,
+      "required": ["current_assessment", "key_evidence"],
       "properties": {
         "current_assessment": { "type": "string" },
         "key_evidence": {
@@ -21,31 +25,21 @@
       }
     },
     "route_record": {
-      "$ref": "route-record.schema.json"
+      "type": "object",
+      "$ref": "urn:forensic-agent-skills:schema:route-record:1.0"
     },
     "findings": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["finding_id", "description", "confidence"],
-        "properties": {
-          "finding_id": { "type": "string" },
-          "description": { "type": "string" },
-          "confidence": {
-            "type": "string",
-            "enum": ["high", "medium", "low"]
-          },
-          "evidence_refs": {
-            "type": "array",
-            "items": { "type": "string" }
-          }
-        }
+        "$ref": "urn:forensic-agent-skills:schema:finding-record:1.0"
       }
     },
     "ledger_events": {
       "type": "array",
       "items": {
-        "$ref": "ledger-event.schema.json"
+        "type": "object",
+        "$ref": "urn:forensic-agent-skills:schema:ledger-event:1.0"
       }
     },
     "artifact_refs": {

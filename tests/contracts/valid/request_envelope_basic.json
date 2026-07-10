@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "request": {
+    "material_info": {
+      "artifact_refs": ["artifact-11111111-2222-3333-4444-555555555555"],
+      "material_type": "disk-image",
+      "triage_notes": ["E01 format detected", "Linux ext4 filesystem"]
+    },
+    "objective": "Find the flag hidden in the system",
+    "objective_status": "explicit",
+    "context": null,
+    "payload": {
+      "mode_decision": "rebuild-and-connect"
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "schema_version": "1.0",
+  "event_id": "led-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "event_type": "command",
+  "timestamp": "2026-07-10T12:00:00Z",
+  "skill": "test-skill",
+  "status": "completed"
+}

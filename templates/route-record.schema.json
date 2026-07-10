@@ -1,35 +1,51 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:forensic-agent-skills:schema:route-record:1.0",
   "title": "Route Record",
   "description": "Phase 2 统一路由记录格式",
   "type": "object",
-  "required": ["route_id", "triggered_skill", "route_basis", "route_plan", "handoffs", "evidence_scope", "risk_level", "next_action", "execution_gate", "routing_policy"],
+  "additionalProperties": false,
+  "required": ["schema_version", "route_id", "triggered_skill", "route_basis", "route_plan", "handoffs", "evidence_scope", "risk_level", "route_status", "execution_gate", "routing_policy"],
   "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
     "route_id": {
       "type": "string",
       "pattern": "^route-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     },
-    "triggered_skill": {
-      "type": "string"
-    },
+    "triggered_skill": { "type": "string" },
     "route_basis": {
       "type": "array",
-      "items": {
-        "type": "string"
-      }
+      "items": { "type": "string" }
     },
-    "mode_decision": {
-      "type": ["string", "null"]
+    "mode_decision": { "type": ["string", "null"] },
+    "route_status": {
+      "type": "string",
+      "enum": ["active", "completed", "blocked", "failed", "cancelled"]
     },
     "route_plan": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["skill", "dependency", "parallel"],
+        "additionalProperties": false,
+        "required": ["route_step_id", "skill", "dependency_step_ids", "status"],
         "properties": {
+          "route_step_id": {
+            "type": "string",
+            "pattern": "^step-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
           "skill": { "type": "string" },
-          "dependency": { "type": ["string", "null"] },
-          "parallel": { "type": "boolean" }
+          "dependency_step_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^step-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          "parallel_group": { "type": ["string", "null"] },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "running", "completed", "blocked", "failed", "skipped"]
+          }
         }
       }
     },
@@ -37,7 +53,8 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["handoff_id", "route_id", "from", "to", "reason", "artifact_refs", "finding_refs", "visited_skills", "hop_count", "status", "priority"],
+        "additionalProperties": false,
+        "required": ["handoff_id", "route_id", "from_step_id", "to_step_id", "from", "to", "reason", "status", "priority"],
         "properties": {
           "handoff_id": {
             "type": "string",
@@ -47,19 +64,34 @@
             "type": "string",
             "pattern": "^route-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
+          "from_step_id": {
+            "type": "string",
+            "pattern": "^step-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "to_step_id": {
+            "type": "string",
+            "pattern": "^step-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
           "from": { "type": "string" },
           "to": { "type": "string" },
           "reason": { "type": "string" },
           "artifact_refs": {
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string",
+              "pattern": "^artifact-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
           },
           "finding_refs": {
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string",
+              "pattern": "^finding-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
           },
           "visited_skills": {
             "type": "array",
+            "uniqueItems": true,
             "items": { "type": "string" }
           },
           "hop_count": { "type": "integer", "minimum": 0 },
@@ -74,7 +106,10 @@
           "reentry_reason": { "type": ["string", "null"] },
           "new_evidence_refs": {
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string",
+              "pattern": "^led-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
           }
         }
       }
@@ -84,18 +119,26 @@
       "type": "string",
       "enum": ["low", "medium", "high"]
     },
-    "next_action": { "type": "string" },
+    "next_action": { "type": ["string", "null"] },
     "execution_gate": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["required"],
       "properties": {
         "required": { "type": "boolean" },
         "reason": { "type": ["string", "null"] },
         "policy_ref": { "type": ["string", "null"] }
+      },
+      "if": {
+        "properties": { "required": { "const": true } }
+      },
+      "then": {
+        "required": ["reason"]
       }
     },
     "routing_policy": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["max_hops"],
       "properties": {
         "max_hops": { "type": "integer", "default": 16, "minimum": 1 }

@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:forensic-agent-skills:schema:artifact-record:1.0",
+  "title": "Artifact Record",
+  "description": "Phase 2 统一制品记录格式",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["artifact_id", "path", "hash", "preservation_status", "schema_version"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "artifact_id": {
+      "type": "string",
+      "pattern": "^artifact-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "path": { "type": "string" },
+    "size": { "type": ["integer", "null"], "minimum": 0 },
+    "hash": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "value", "status"],
+      "properties": {
+        "algorithm": { "type": "string" },
+        "value": { "type": ["string", "null"] },
+        "status": {
+          "type": "string",
+          "enum": ["verified", "provided", "deferred", "unavailable"]
+        }
+      }
+    },
+    "preservation_status": {
+      "type": "string",
+      "enum": ["original-reference", "read-only-mounted", "working-copy-created"]
+    },
+    "deferred_reason": { "type": ["string", "null"] },
+    "source": { "type": ["string", "null"] },
+    "material_type": { "type": ["string", "null"] },
+    "created_at": { "type": ["string", "null"], "format": "date-time" },
+    "source_artifact_id": {
+      "type": ["string", "null"],
+      "pattern": "^artifact-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    }
+  }
+}

@@ -1,10 +1,13 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:forensic-agent-skills:schema:ledger-event:1.0",
   "title": "Ledger Event",
   "description": "Phase 2 统一证据事件格式",
   "type": "object",
-  "required": ["event_id", "event_type", "timestamp", "skill", "status"],
+  "additionalProperties": false,
+  "required": ["event_id", "event_type", "timestamp", "skill", "status", "schema_version"],
   "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
     "event_id": {
       "type": "string",
       "pattern": "^led-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
@@ -13,16 +16,9 @@
       "type": "string",
       "enum": ["command", "finding", "artifact", "handoff", "state-transition"]
     },
-    "timestamp": {
-      "type": "string",
-      "format": "date-time"
-    },
-    "skill": {
-      "type": "string"
-    },
-    "stage": {
-      "type": ["string", "null"]
-    },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "skill": { "type": "string" },
+    "stage": { "type": ["string", "null"] },
     "artifact_refs": {
       "type": "array",
       "items": {
@@ -53,41 +49,74 @@
       "type": "string",
       "enum": ["pending", "in_progress", "retrying", "blocked", "completed", "failed", "skipped"]
     },
-    "command": {
-      "type": ["string", "null"]
-    },
-    "started_at": {
-      "type": ["string", "null"],
-      "format": "date-time"
-    },
-    "ended_at": {
-      "type": ["string", "null"],
-      "format": "date-time"
-    },
-    "exit_code": {
-      "type": ["integer", "null"]
-    },
-    "stdout_path": {
-      "type": ["string", "null"]
-    },
-    "stderr_path": {
-      "type": ["string", "null"]
-    },
-    "output_refs": {
+    "command": { "type": ["string", "null"] },
+    "started_at": { "type": ["string", "null"], "format": "date-time" },
+    "ended_at": { "type": ["string", "null"], "format": "date-time" },
+    "exit_code": { "type": ["integer", "null"] },
+    "stdout_path": { "type": ["string", "null"] },
+    "stderr_path": { "type": ["string", "null"] },
+    "output_artifact_refs": {
       "type": "array",
       "items": {
-        "type": "string"
+        "type": "string",
+        "pattern": "^artifact-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
       }
     },
-    "finding": {
-      "type": ["string", "null"]
-    },
+    "finding": { "type": ["string", "null"] },
     "confidence": {
       "type": ["string", "null"],
       "enum": ["high", "medium", "low", null]
     },
-    "next_action": {
-      "type": ["string", "null"]
+    "next_action": { "type": ["string", "null"] }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "event_type": { "const": "command" } },
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["command", "started_at"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "finding" } },
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["finding", "confidence"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "handoff" } },
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["handoff_id"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "artifact" } },
+        "required": ["event_type"]
+      },
+      "then": {
+        "properties": {
+          "artifact_refs": { "minItems": 1 }
+        },
+        "required": ["artifact_refs"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "state-transition" } },
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["stage"]
+      }
     }
-  }
+  ]
 }

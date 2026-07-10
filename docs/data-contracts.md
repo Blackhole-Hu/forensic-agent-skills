@@ -175,11 +175,13 @@ routing_policy:
 
 | 类型 | 前缀 | 示例 |
 |------|------|------|
-| Ledger Event | `led-` | `led-a1b2c3d4` |
-| Timeline Event | `tl-` | `tl-e5f6g7h8` |
-| Artifact | `artifact-` | `artifact-i9j0k1l2` |
-| Route | `route-` | `route-m3n4o5p6` |
-| Handoff | `hof-` | `hof-q7r8s9t0` |
+| Ledger Event | `led-` | `led-a1b2c3d4-e5f6-7890-abcd-ef1234567890` |
+| Timeline Event | `tl-` | `tl-a1b2c3d4-e5f6-7890-abcd-ef1234567890` |
+| Artifact | `artifact-` | `artifact-a1b2c3d4-e5f6-7890-abcd-ef1234567890` |
+| Route | `route-` | `route-a1b2c3d4-e5f6-7890-abcd-ef1234567890` |
+| Handoff | `hof-` | `hof-a1b2c3d4-e5f6-7890-abcd-ef1234567890` |
+| Finding | `finding-` | `finding-a1b2c3d4-e5f6-7890-abcd-ef1234567890` |
+| Route Step | `step-` | `step-a1b2c3d4-e5f6-7890-abcd-ef1234567890` |
 
 ---
 

@@ -1,10 +1,13 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:forensic-agent-skills:schema:timeline-event:1.0",
   "title": "Timeline Event",
   "description": "Phase 2 时间线事件格式",
   "type": "object",
-  "required": ["timeline_event_id", "source_type", "source_artifact_id", "parser_id", "confidence"],
+  "additionalProperties": false,
+  "required": ["schema_version", "timeline_event_id", "source_type", "source_artifact_id", "parser_id", "action", "confidence", "time_precision", "ledger_event_refs"],
   "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
     "timeline_event_id": {
       "type": "string",
       "pattern": "^tl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
@@ -14,7 +17,10 @@
       "type": ["string", "null"],
       "format": "date-time"
     },
-    "timezone_offset": { "type": ["string", "null"] },
+    "timezone_offset": {
+      "type": ["string", "null"],
+      "pattern": "^[+-][0-2][0-9]:[0-5][0-9]$"
+    },
     "timezone_name": { "type": ["string", "null"] },
     "timezone_assumption": { "type": ["string", "null"] },
     "clock_skew_seconds": { "type": ["integer", "null"] },
@@ -25,16 +31,9 @@
     "source_type": {
       "type": "string",
       "enum": [
-        "auth-log",
-        "journal",
-        "web-log",
-        "docker-log",
-        "db-transaction-log",
-        "db-snapshot",
-        "login-record",
-        "file-time",
-        "pve-log",
-        "ceph-log"
+        "auth-log", "journal", "web-log", "docker-log",
+        "db-transaction-log", "db-snapshot", "login-record",
+        "file-time", "pve-log", "ceph-log"
       ]
     },
     "source_artifact_id": {
@@ -42,11 +41,13 @@
       "pattern": "^artifact-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     },
     "parser_id": { "type": "string" },
+    "parser_version": { "type": ["string", "null"] },
     "actor": { "type": ["string", "null"] },
     "action": { "type": "string" },
     "target": { "type": ["string", "null"] },
     "ledger_event_refs": {
       "type": "array",
+      "minItems": 1,
       "items": {
         "type": "string",
         "pattern": "^led-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
@@ -56,5 +57,19 @@
       "type": "string",
       "enum": ["high", "medium", "low"]
     }
-  }
+  },
+  "anyOf": [
+    {
+      "required": ["original_timestamp"],
+      "properties": {
+        "original_timestamp": { "type": "string", "minLength": 1 }
+      }
+    },
+    {
+      "required": ["normalized_timestamp"],
+      "properties": {
+        "normalized_timestamp": { "type": "string", "minLength": 1 }
+      }
+    }
+  ]
 }
