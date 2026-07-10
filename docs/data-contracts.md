@@ -316,17 +316,41 @@ payload:
 
 ```yaml
 payload:
-  connections:
+  session_id: "session-<uuid>"
+  origin:
+    type: rebuilt-runtime|direct-remote
+    plan_id: string|null
+  session_status: pending|connecting|active|partial|completed|blocked|failed
+  connection_results:
     - connection_id: string
-      type: ssh|webui|db-client|docker-exec|winrm|rdp|service-client
-      host: string
-      port: integer
-      service: string|null
-      credential_source: string|null
-      credential_reference: string|null
-      authentication_method: password|key|token|certificate|interactive|none
+      status: preflight|reachable|connected|authenticated|blocked|failed
+      authenticated: boolean|null
+      client: string|null
+      started_at: ISO8601
+      ended_at: ISO8601|null
+      error_class: string|null
+      attempt_count: integer
+      ledger_event_refs: array
   session_summary: string
+  remote_identity: object|null
+  time_observation: object|null
   volatile_data: array
+  collection_artifact_refs: array
+  expected_remote_footprint: array
+  domain_candidates:
+    - skill: string
+      basis: array
+      confidence: high|medium|low
+      connection_ids: array
+      finding_refs: array
+      artifact_refs: array
+  blockers: array
+  effective_limits:
+    max_session_seconds: integer
+    max_output_bytes: integer
+    connect_timeout_seconds: integer
+    max_attempts_per_connection: integer
+    retry_backoff_seconds: integer
 ```
 
 ### 8.5 linux-server-forensics
