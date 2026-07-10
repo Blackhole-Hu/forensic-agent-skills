@@ -359,7 +359,17 @@ payload:
 payload:
   environment:
     type: rebuilt-vm|remote-live|offline-image
-    connection_info: object|null
+    plan_id: string|null
+    session_id: string|null
+  system_profile:
+    hostname: string|null
+    distro: string|null
+    version: string|null
+    kernel: string|null
+    architecture: string|null
+    timezone: string|null
+    boot_time: string|null
+  user_account_findings: array
   suspicious_users: array
   login_events: array
   ssh_findings: array
@@ -367,6 +377,50 @@ payload:
   persistence_points: array
   command_history_findings: array
   service_changes: array
+  package_findings: array
+  network_config_findings: array
+  log_source_map:
+    - source_id: string
+      source_type: auth-log|journal|login-record|audit-log|package-log|service-log|file-time|other
+      path: string
+      availability: present|missing|partial|unreadable
+      coverage_start: string|null
+      coverage_end: string|null
+      timezone_hint: object|null
+      artifact_ref: string|null
+      gap_notes: array
+  timeline_candidates:
+    - candidate_id: string
+      original_timestamp: string|null
+      normalized_timestamp: ISO8601|null
+      timezone_offset: string|null
+      timezone_name: string|null
+      timezone_assumption: string|null
+      clock_skew_seconds: integer|null
+      time_precision: exact|second|minute|day|unknown
+      source_type_hint: string
+      source_artifact_id: string
+      parser_id: string
+      actor: string|null
+      action: string
+      target: string|null
+      ledger_event_refs: array
+      confidence: high|medium|low
+      normalization_status: ready|needs-review|unsupported-source
+  cross_domain_candidates:
+    - candidate_id: string
+      skill: string
+      basis: array
+      confidence: high|medium|low
+      connection_ids: array
+      artifact_refs: array
+      finding_refs: array
+      targeted_collection_request:
+        actions: array
+        paths: array
+        max_output_bytes: integer|null
+        reason: string
+  blockers: array
 ```
 
 ### 8.6 webapp-server-forensics
