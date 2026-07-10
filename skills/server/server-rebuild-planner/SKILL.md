@@ -1,0 +1,374 @@
+---
+name: server-rebuild-planner
+description: 服务器重建规划中枢。判断重建可行性，选择后端（VMware/QEMU/VirtualBox/Docker/WSL/manual），规划网络、凭据、资源和恢复策略，输出完整 rebuild plan 交给 executor 执行。
+---
+
+# server-rebuild-planner
+
+## Purpose
+
+server-rebuild-planner 是服务器重建的规划层。接收 `server-forensics-router` 的路由决策（`rebuild-and-connect` 模式），评估重建可行性，选择最佳后端，并输出包含资源需求、网络策略、凭据方案和恢复策略的完整 rebuild plan。
+
+**planner 只负责规划，不执行任何操作。** 执行由 `server-rebuild-executor` 的 Stage 0-6 负责。
+
+## Use When
+
+- `server-forensics-router` 决定 `rebuild-and-connect` 模式
+- 检材包含可重建的服务器镜像（E01/VHD/VMDK/qcow2/raw）
+- 检材包含可运行的 Docker compose 项目
+- 检材包含完整的服务源码和数据库配置
+- 需要将离线检材启动为运行态进行分析
+
+## Do Not Use When
+
+- 模式为 `remote-live`：直接连接，无需重建
+- 模式为 `offline-image`：只读分析，不启动
+- 模式为 `hybrid-cluster`：先由 `cluster-virtualization-forensics` 处理存储层
+- 检材为纯日志、纯备份文件且无可重建的服务
+- planner 不执行镜像导出、磁盘转换、VM 创建、网络配置、启动、连接测试
+
+## Request Contract
+
+遵循 `templates/request-envelope.schema.json`。
+
+```yaml
+request:
+  material_info:
+    artifact_refs: array
+    material_type: string
+    triage_notes: array
+    size_summary: object|null
+  objective: string|null
+  objective_status: explicit|inferred|unknown
+  context: object|null
+  payload:
+    mode_decision: rebuild-and-connect
+    tool_capability_report: object|null  # 可选，前置 tool-router 的能力报告
+```
+
+## Response Contract
+
+遵循 `templates/response-envelope.schema.json`。
+
+**route_status 和 route_plan 随 feasibility 变化**。仅 `feasibility: yes` 或可降级的 `partial` 时才生成 executor handoff。
+
+```yaml
+schema_version: "1.0"
+investigation_summary:
+  current_assessment: string
+  key_evidence: array
+  excluded_routes: array
+route_record:
+  schema_version: "1.0"
+  route_id: "route-<uuid>"
+  triggered_skill: "server-rebuild-planner"
+  route_basis: array
+  mode_decision: rebuild-and-connect
+  route_status: active|blocked          # feasibility=blocked 时 route_status=blocked
+  route_plan:
+    - route_step_id: "step-<uuid>"
+      skill: string
+      dependency_step_ids: []
+      parallel_group: null
+      status: pending
+  handoffs: []                          # 仅 feasibility=yes 或可降级 partial 时包含
+  evidence_scope: string
+  risk_level: low|medium|high
+  next_action: string|null
+  execution_gate:
+    required: false
+    reason: null
+    policy_ref: null
+  routing_policy:
+    max_hops: 16
+findings: array
+ledger_events: array
+artifact_refs: array
+payload:
+  plan_id: "plan-<uuid>"
+  plan_status: draft|ready|blocked|rejected
+  rebuild_feasibility: yes|no|partial|blocked
+  selected_backend: vmware|qemu|virtualbox|docker|wsl|manual|null
+  backend_selection_status: confirmed|provisional|unavailable
+  backend_candidates: array
+  selection_basis: array
+  backend_profile: object
+  required_inputs: array
+  missing_inputs: array
+  prepared_artifact_requirements: array
+  resource_requirements:
+    cpu: integer
+    ram_mb: integer
+    disk_mb: integer
+    nested_virtualization: boolean|null
+  network_mode: host-only|nat|isolated|bridge|backend-default|none
+  port_mapping: object|null
+  credential_source: string|null
+  credential_reference: string|null
+  authentication_method: string|null
+  modification_plan: string
+  rollback_plan: string
+  recovery_policy: object       # 符合 recovery-policy.schema.json
+  execution_scope:
+    approved_stages: array        # 已批准的 Stage 编号
+    approved_operations: array    # 已批准的操作列表
+    approved_backend: string|null
+    approved_network_modes: array
+    source_modification_allowed: false
+    fallback_backends: array
+  executor_handoff: object|null   # 非空时包含 plan_id, route_id, artifact_refs, backend, backend_selection_status, recovery_policy, execution_scope
+```
+
+## Workflow
+
+### Step 1: Intake and Feasibility Assessment
+
+接收前置步骤的材料信息，判断重建可行性：
+
+| 条件 | 可行性 |
+|------|--------|
+| 镜像完整、格式可转换、本地有对应后端 | `yes` |
+| 镜像存在但缺少某些组件（如网络配置、部分磁盘） | `partial` |
+| 镜像损坏、缺少关键组件或启动会污染证据 | `no` |
+| 缺少必要信息无法判断 | `blocked` |
+
+分配 `plan_id`，按以下规则设置 `plan_status`：
+
+| Feasibility | plan_status | executor_handoff |
+|------------|-------------|-----------------|
+| `yes` | `ready` | 非空 |
+| `partial` 且可降级 | `ready` | 非空 |
+| `partial` 且关键输入缺失 | `blocked` | null |
+| `no` | `rejected` | null |
+| `blocked` | `blocked` | null |
+
+`draft` 仅用于规划尚未完成时。
+
+**Ledger Event**: 产生 `finding` event（`rebuild_feasibility`, confidence: medium）。
+
+### Step 2: Select Backend
+
+根据检材特征、可用性报告和建议选择后端。
+
+| 检材特征 | 推荐 backend | 条件 |
+|---------|-------------|------|
+| 原生 VMDK/VMX 或已转换兼容磁盘 | `vmware` | VMware Workstation 可用 |
+| qcow2/raw 镜像；也可处理 VHD/VMDK | `qemu` | qemu-img（格式操作）、qemu-system（运行）可用 |
+| VDI/VHD/VMDK 或转换后的兼容磁盘 | `virtualbox` | VirtualBox 可用 |
+| compose 项目 / Dockerfile / image archive | `docker` | Docker daemon 可用 |
+| rootfs/distro 或适合 WSL 复现的 Linux 应用 | `wsl` | WSL 可用；不用于任意完整服务器镜像 |
+| 特殊格式或需要 GUI/取证工具 | `manual` | 需要手动操作 |
+
+- `tool_capability_report` 存在时，`backend_selection_status` 为 `confirmed` 。
+- 需要 executor Stage 0 验证时，`backend_selection_status` 为 `provisional` ，并列出 `backend_candidates`。
+- 所有候选后端不可用时，`selected_backend` 为 `null`，`backend_selection_status` 为 `unavailable`。
+
+生成 `backend_profile`：记录该 backend 需要的特定参数。
+
+**Ledger Event**: 产生 `finding` event（`selected_backend`, `backend_selection_status`, confidence: medium）。
+
+### Step 3: Plan Resources
+
+根据检材大小和复杂度估算资源：
+
+```yaml
+resource_requirements:
+  cpu: integer               # 建议 CPU 核心数
+  ram_mb: integer            # 建议内存 (MB)
+  disk_mb: integer           # 预估工作磁盘用量
+  nested_virtualization: boolean|null  # 是否需要嵌套虚拟化
+```
+
+**Ledger Event**: 产生 `finding` event。
+
+### Step 4: Plan Network
+
+选择网络模式并规划端口映射：
+
+| network_mode | 说明 | 适用场景 |
+|-------------|------|---------|
+| `host-only` | 仅宿主机访问 | 默认推荐，不暴露外网 |
+| `nat` | NAT 网络 | 需要受限外网访问 |
+| `isolated` | 完全隔离 | 恶意样本分析 |
+| `bridge` | 桥接网络 | 只有 `execution_scope.approved_network_modes` 明确允许时执行 |
+| `backend-default` | 使用后端默认 | 由 executor 决定 |
+| `none` | 无网络 | 离线分析 |
+
+**Ledger Event**: 产生 `finding` event。
+
+### Step 5: Plan Credentials
+
+规划凭据来源，**不记录实际凭据值**：
+
+```yaml
+credential_source: string|null        # 凭据来源描述
+credential_reference: string|null     # 凭据引用（如 "题目附件 config.yml:password 字段"）
+authentication_method: string|null    # password|key|token|certificate|interactive|none
+```
+
+**Ledger Event**: 产生 `finding` event，仅记录来源和方法。
+
+### Step 6: Define Recovery Policy
+
+生成符合 `templates/recovery-policy.schema.json` 的恢复策略：
+
+```yaml
+recovery_policy:
+  schema_version: "1.0"
+  operations:
+    artifact_export:
+      required_capability: ewf-export
+      error_classes:
+        export_tool_failure:
+          auto_retry: true
+          max_attempts: 2
+          tool_candidates:
+            - tool: ewfexport
+              operation: export
+          action: retry
+    disk_format_conversion:
+      required_capability: disk-format-conversion
+      error_classes:
+        unsupported_format:
+          auto_retry: false
+          action: replan
+        tool_failure:
+          auto_retry: true
+          max_attempts: 2
+          tool_candidates:
+            - tool: qemu-img
+              operation: convert
+            - tool: VBoxManage
+              operation: clonemedium
+          action: retry
+    runtime_configuration:
+      error_classes:
+        config_generation_failure:
+          auto_retry: false
+          fallback_backends: ["qemu"]
+          action: fallback
+    runtime_launch:
+      error_classes:
+        startup_timeout:
+          auto_retry: true
+          max_attempts: 1
+          timeout_seconds: 120
+          fallback_backends: ["qemu"]
+          action: fallback
+  default:
+    auto_retry: false
+    action: replan
+```
+
+**注意**：`recovery_policy` 中 `fallback_backends` 必须属于 `execution_scope.fallback_backends`。`artifact_export` 只保留执行同一 operation（export）的候选工具。
+
+**工具选择规则**：只声明 `required_capability` 和候选 `tool_candidates`（`tool` + `operation`）。最终可用工具由 `tool-router` 在 executor Stage 0 判断。
+
+**Ledger Event**: 产生 `state-transition` event。
+
+### Step 7: Define Executor Handoff
+
+### Feasibility-Based Routing
+
+| Feasibility | Route |
+|------------|-------|
+| `yes` | handoff → executor |
+| `partial` 且可降级 | handoff → executor |
+| `partial` 且关键输入缺失 | `plan_status: blocked`，返回 Router 或请求补充输入 |
+| `no` + 有远程入口 | handoff → `remote-live` |
+| `no` + 有虚拟化存储拓扑 | handoff → `hybrid-cluster` |
+| `no` + 无远程入口且无虚拟化拓扑 | handoff → `offline-image` |
+| `blocked` | `route_status: blocked`，不生成 executor handoff |
+
+`blocked` 不触发 `execution_gate`——它表示计划无法执行，应设置 `route_status: blocked` 并通知上游。
+
+### Planner-Executor Boundary
+
+| 维度 | Planner（本 skill） | Executor（server-rebuild-executor） |
+|------|-------------------|-----------------------------------|
+| 评估 | 判断是否可重建、选择后端 | 验证 plan（Stage 0）、检查工具可用性 |
+| 规划 | 资源需求、网络、凭据、恢复策略 | 不重新规划，按 plan 执行 |
+| 执行 | 不执行任何操作 | Stage 0-6 逐步执行 |
+| 恢复 | 定义 `recovery_policy` 边界 | 在 `recovery_policy` 范围内自动恢复 |
+| 超出范围 | — | 退回 planner 重新规划 |
+| 状态 | 输出 `plan_id` + `execution_scope` | 持久化 `rebuild-status.json`，记录每个 Stage |
+
+## Evidence Requirements
+
+| Event Type | When | LED-Event Fields |
+|-----------|------|-----------------|
+| `finding` | 可行性判断、后端选择、资源/网络/凭据规划 | `finding`, `confidence` |
+| `state-transition` | 恢复策略定义 | `stage`, `next_action` |
+| `handoff` | 交接给 executor | `handoff_id`, `route_id`, `artifact_refs` |
+
+Handoff 结构细节保存在 `route_record.handoffs`，Ledger Event 只引用 `handoff_id`、`route_id`、`artifact_refs`。
+
+所有 ledger event 由 `evidence-ledger` 负责持久化。
+
+## Investigation Summary
+
+```markdown
+## Investigation Summary
+
+**Current Assessment**: 重建可行性 <feasibility>，后端 <backend> (<selection_status>)
+
+**Key Evidence**:
+1. <证据1>
+2. <证据2>
+
+**Excluded Routes** (if any): <原因>
+
+**Route Plan**:
+- server-rebuild-executor（从 route_record.route_plan 渲染）
+
+或（feasibility=no 时）：
+- <offline-image / remote-live>（从 route_record.route_plan 渲染）
+```
+
+## Execution Gate
+
+`execution_gate` 仅在操作超出 `execution_scope` 已批准范围时触发：
+- 需要执行 `execution_scope` 未批准的 Stage
+- 需要修改原始检材（`source_modification_allowed: false` 时）
+- 需要使用 `approved_network_modes` 未包含的网络模式
+- 需要启用 `fallback_backends` 未列出的后端
+
+`rebuild_feasibility: blocked` 不触发 execution_gate——它应设置 `route_status: blocked` 并停止。
+
+`bridge` 模式仅在 `execution_scope.approved_network_modes` 明确包含时才能执行。
+
+## Stop Conditions
+
+- `rebuild_feasibility` 为 `blocked`：缺少必要信息，`route_status: blocked`
+- `rebuild_feasibility` 为 `no` 且无远程入口、无可用域分析路径
+- `missing_inputs` 包含关键组件（如缺少系统磁盘）
+- 所有候选后端 `backend_selection_status: unavailable` 且 `manual` 不可行
+
+## Quality Checklist
+
+- [ ] 不执行任何重建操作（镜像导出、磁盘转换、VM 创建、启动）
+- [ ] 输出 `plan_id` 和 `plan_status`
+- [ ] `selected_backend` 可为 null，配合 `backend_selection_status` 和 `backend_candidates`
+- [ ] `network_mode` 使用 `host-only|nat|isolated|bridge|backend-default|none` 枚举
+- [ ] `recovery_policy` 与 `templates/recovery-policy.schema.json` 一致
+- [ ] `tool_candidates` 使用 `tool` + `operation` 结构；不同 operation 不混在同一 error class
+- [ ] 工具选择只声明 capability 和候选，不假定具体命令可执行
+- [ ] 不记录实际凭据值
+- [ ] `credential_source`、`credential_reference`、`authentication_method` 可为 null
+- [ ] `route_record` 使用 `route_step_id` 和 `dependency_step_ids`
+- [ ] feasibility=blocked 时 `route_status: blocked`，不触发 execution_gate
+- [ ] feasibility=no 时根据证据选择 offline-image/remote-live/hybrid-cluster
+- [ ] Handoff 包含 `from_step_id`、`to_step_id`、`visited_skills`、`hop_count`
+- [ ] `executor_handoff` 包含 `plan_id`、`route_id`、`artifact_refs`、`execution_scope`
+- [ ] `execution_scope` 使用结构化批准范围（approved_stages、approved_operations 等）
+- [ ] 所有 ledger event 写入 `ledger_events` 数组
+- [ ] 不生成旧引用（`battle summary`、`competition-autopilot`、`server-answer-gate`）
+- [ ] Investigation Summary 的 Route Plan 从 `route_record.route_plan` 渲染
+- [ ] `request.payload` 可接收 `tool_capability_report`
+- [ ] `recovery_policy` 中 `fallback_backends` 属于 `execution_scope.fallback_backends`
+
+## Notes
+
+- planner 只输出规划，不执行任何操作
+- planner 不直接处理 Ceph/PVE 复杂存储层（由 `cluster-virtualization-forensics` 处理）
+- 本 skill 不保留旧引用（`competition-autopilot`、`triage-files`、`server-answer-gate`、`battle summary`、`E:\CompetitionTools`）
