@@ -589,24 +589,180 @@ payload:
 
 ```yaml
 payload:
-  db_type: mysql|postgresql|redis|mongodb|sqlite|unknown
+  environment:
+    type: remote-live|rebuilt-vm|offline-image|artifact-package
+    plan_id: string|null
+    session_id: string|null
+  db_profile:
+    db_type: mysql|postgresql|redis|mongodb|sqlite|unknown
+    version: string|null
+    instance_id: string|null
+    server_timezone: string|null
+    charset: string|null
+    collation: string|null
+    read_only_status: confirmed-read-only|reported-read-only|writable|unknown
+    profile_artifact_refs: array
+    ledger_event_refs: array
+    confidence: high|medium|low
   access_mode: online-query|offline-directory|dump-file|transaction-log|snapshot
-  connection_info: object|null
-  data_paths: array
-  table_map: array
-  query_plan: array
+  data_sources:
+    - source_id: string
+      source_type: config|data-directory|dump|snapshot|binlog|wal|redo|undo|oplog|aof|rdb|audit-log|slow-query-log|general-log|other
+      path: string
+      availability: present|missing|partial|unreadable
+      source_artifact_id: string|null
+      coverage_start: string|null
+      coverage_end: string|null
+      timezone_hint: object|null
+      gap_notes: array
+  table_map:
+    - object_id: string
+      database: string|null
+      schema: string|null
+      name: string
+      object_type: table|view|collection|index|keyspace|other
+      estimated_rows: integer|null
+      columns_or_fields: array
+      artifact_refs: array
+      ledger_event_refs: array
+      confidence: high|medium|low
+  query_plan:
+    - query_id: string
+      purpose: string
+      db_type: mysql|postgresql|redis|mongodb|sqlite|unknown
+      target_instance_scope_id: string
+      target_object_scope_ids: array
+      target_database: string|null
+      query_template: string
+      parameter_refs: array
+      parser_id: string
+      parsed_statement_types: array
+      safety_status: pending|approved|rejected
+      safety_basis: array
+      expected_columns: array
+      max_rows: integer
+      max_bytes: integer
+      timeout_seconds: integer
+      attempt_count: integer
+      termination_status: not-applicable|confirmed-stopped|may-still-be-running|unknown
+      impact_level: low|medium|high
+      status: pending|running|completed|partial|blocked|failed|skipped
   query_result_refs:
     - query_id: string
-      query: string
-      target: string
-      output_path: string
-      output_hash: string
-      row_count: integer
-  account_findings: array
-  business_data_findings: array
-  secret_findings: array
-  db_timeline_findings: array
+      output_artifact_id: string
+      row_count: integer|null
+      byte_count: integer
+      truncated: boolean
+      redaction_applied: boolean
+      started_at: ISO8601
+      ended_at: ISO8601
+      ledger_event_refs: array
+  account_findings:
+    - account_id: string
+      principal: string
+      account_type: user|role|service-account|application-account|unknown
+      authentication_method: string|null
+      privilege_summary: array
+      superuser_or_admin: boolean|null
+      status: active|locked|expired|disabled|unknown
+      artifact_refs: array
+      finding_refs: array
+      ledger_event_refs: array
+      confidence: high|medium|low
+  privilege_findings:
+    - privilege_id: string
+      principal: string
+      scope: global|database|schema|table|collection|keyspace|unknown
+      privilege: string
+      grantable: boolean|null
+      anomalous: boolean|null
+      basis: array
+      artifact_refs: array
+      finding_refs: array
+      ledger_event_refs: array
+      confidence: high|medium|low
+  business_data_findings:
+    - finding_id: string
+      data_category: account|transaction|order|message|audit|configuration|identifier|other
+      database: string|null
+      schema: string|null
+      object_name: string
+      selection_basis: array
+      record_count: integer|null
+      sample_artifact_id: string|null
+      artifact_refs: array
+      redaction_applied: boolean
+      minimization_applied: boolean
+      finding_refs: array
+      ledger_event_refs: array
+      confidence: high|medium|low
+  secret_findings:
+    - secret_id: string
+      secret_type: password|token|api-key|connection-string|private-key|encryption-key|other
+      source_path: string
+      source_artifact_id: string
+      key_or_field: string|null
+      redacted_value: string
+      exposure_context: string
+      finding_refs: array
+      ledger_event_refs: array
+      confidence: high|medium|low
+  transaction_findings:
+    - transaction_id: string
+      source_type: binlog|wal|redo|undo|oplog|aof|audit-log|other
+      original_timestamp: string|null
+      normalized_timestamp: ISO8601|null
+      actor: string|null
+      operation: string
+      target: string|null
+      transaction_identifier: string|null
+      artifact_refs: array
+      ledger_event_refs: array
+      confidence: high|medium|low
+  timeline_candidates:
+    - candidate_id: string
+      original_timestamp: string|null
+      normalized_timestamp: ISO8601|null
+      timezone_offset: string|null
+      timezone_name: string|null
+      timezone_assumption: string|null
+      clock_skew_seconds: integer|null
+      time_precision: exact|second|minute|day|unknown
+      source_type_hint: string
+      source_artifact_id: string
+      parser_id: string
+      actor: string|null
+      action: string
+      target: string|null
+      ledger_event_refs: array
+      confidence: high|medium|low
+      normalization_status: ready|needs-review|unsupported-source
+  cross_domain_candidates:
+    - candidate_id: string
+      skill: string
+      basis: array
+      confidence: high|medium|low
+      connection_ids: array
+      artifact_refs: array
+      finding_refs: array
+      targeted_collection_request:
+        actions: array
+        paths: array
+        max_output_bytes: integer|null
+        reason: string
+  effective_limits:
+    max_query_rows: integer
+    max_query_bytes: integer
+    query_timeout_seconds: integer
+    max_queries: integer
+  blockers: array
 ```
+
+`targeted_collection_request` 整体允许为 null。非 null 时四个字段必须存在，只用于 `remote-server-live-response`。
+
+`read_only_status` 使用 `confirmed-read-only|reported-read-only|writable|unknown`。`reported-read-only` 不等于 `confirmed-read-only`。`writable` 不代表允许写操作。
+
+Request Contract 中 `allowed_instances` 和 `allowed_objects` 使用结构化定义（见 SKILL.md Request Contract 章节）。`online-query` 时 `allowed_instances` 必须非空；`allowed_objects` 必须形成有限对象范围。
 
 ### 8.8 docker-container-forensics
 
