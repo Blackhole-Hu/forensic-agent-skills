@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Timeline Event",
+  "description": "Phase 2 时间线事件格式",
+  "type": "object",
+  "required": ["timeline_event_id", "source_type", "source_artifact_id", "parser_id", "confidence"],
+  "properties": {
+    "timeline_event_id": {
+      "type": "string",
+      "pattern": "^tl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "original_timestamp": { "type": ["string", "null"] },
+    "normalized_timestamp": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "timezone_offset": { "type": ["string", "null"] },
+    "timezone_name": { "type": ["string", "null"] },
+    "timezone_assumption": { "type": ["string", "null"] },
+    "clock_skew_seconds": { "type": ["integer", "null"] },
+    "time_precision": {
+      "type": "string",
+      "enum": ["exact", "second", "minute", "day", "unknown"]
+    },
+    "source_type": {
+      "type": "string",
+      "enum": [
+        "auth-log",
+        "journal",
+        "web-log",
+        "docker-log",
+        "db-transaction-log",
+        "db-snapshot",
+        "login-record",
+        "file-time",
+        "pve-log",
+        "ceph-log"
+      ]
+    },
+    "source_artifact_id": {
+      "type": "string",
+      "pattern": "^artifact-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "parser_id": { "type": "string" },
+    "actor": { "type": ["string", "null"] },
+    "action": { "type": "string" },
+    "target": { "type": ["string", "null"] },
+    "ledger_event_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^led-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      }
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["high", "medium", "low"]
+    }
+  }
+}

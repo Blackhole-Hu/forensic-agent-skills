@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Request Envelope",
+  "description": "Phase 2 统一请求信封格式",
+  "type": "object",
+  "required": ["request"],
+  "properties": {
+    "request": {
+      "type": "object",
+      "required": ["material_info", "objective_status", "payload"],
+      "properties": {
+        "material_info": {
+          "type": "object",
+          "required": ["artifact_refs", "material_type", "triage_notes"],
+          "properties": {
+            "artifact_refs": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^artifact-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            "material_type": { "type": "string" },
+            "triage_notes": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "size_summary": {
+              "type": ["object", "null"],
+              "properties": {
+                "total_bytes": { "type": ["integer", "null"] },
+                "file_count": { "type": ["integer", "null"] },
+                "largest_file_bytes": { "type": ["integer", "null"] }
+              }
+            }
+          }
+        },
+        "objective": { "type": ["string", "null"] },
+        "objective_status": {
+          "type": "string",
+          "enum": ["explicit", "inferred", "unknown"]
+        },
+        "context": { "type": ["object", "null"] },
+        "payload": { "type": "object" }
+      }
+    }
+  }
+}

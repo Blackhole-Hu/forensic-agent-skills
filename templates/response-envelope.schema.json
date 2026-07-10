@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Response Envelope",
+  "description": "Phase 2 统一响应信封格式",
+  "type": "object",
+  "required": ["investigation_summary", "route_record", "findings", "ledger_events", "artifact_refs", "payload"],
+  "properties": {
+    "investigation_summary": {
+      "type": "object",
+      "required": ["current_assessment"],
+      "properties": {
+        "current_assessment": { "type": "string" },
+        "key_evidence": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "excluded_routes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "route_record": {
+      "$ref": "route-record.schema.json"
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["finding_id", "description", "confidence"],
+        "properties": {
+          "finding_id": { "type": "string" },
+          "description": { "type": "string" },
+          "confidence": {
+            "type": "string",
+            "enum": ["high", "medium", "low"]
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "ledger_events": {
+      "type": "array",
+      "items": {
+        "$ref": "ledger-event.schema.json"
+      }
+    },
+    "artifact_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^artifact-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      }
+    },
+    "payload": { "type": "object" }
+  }
+}

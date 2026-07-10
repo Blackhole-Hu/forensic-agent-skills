@@ -1,0 +1,105 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Route Record",
+  "description": "Phase 2 统一路由记录格式",
+  "type": "object",
+  "required": ["route_id", "triggered_skill", "route_basis", "route_plan", "handoffs", "evidence_scope", "risk_level", "next_action", "execution_gate", "routing_policy"],
+  "properties": {
+    "route_id": {
+      "type": "string",
+      "pattern": "^route-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "triggered_skill": {
+      "type": "string"
+    },
+    "route_basis": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "mode_decision": {
+      "type": ["string", "null"]
+    },
+    "route_plan": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["skill", "dependency", "parallel"],
+        "properties": {
+          "skill": { "type": "string" },
+          "dependency": { "type": ["string", "null"] },
+          "parallel": { "type": "boolean" }
+        }
+      }
+    },
+    "handoffs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["handoff_id", "route_id", "from", "to", "reason", "artifact_refs", "finding_refs", "visited_skills", "hop_count", "status", "priority"],
+        "properties": {
+          "handoff_id": {
+            "type": "string",
+            "pattern": "^hof-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "route_id": {
+            "type": "string",
+            "pattern": "^route-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "from": { "type": "string" },
+          "to": { "type": "string" },
+          "reason": { "type": "string" },
+          "artifact_refs": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "finding_refs": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "visited_skills": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "hop_count": { "type": "integer", "minimum": 0 },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "accepted", "completed", "rejected", "blocked"]
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["critical", "high", "normal", "low"]
+          },
+          "reentry_reason": { "type": ["string", "null"] },
+          "new_evidence_refs": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "evidence_scope": { "type": "string" },
+    "risk_level": {
+      "type": "string",
+      "enum": ["low", "medium", "high"]
+    },
+    "next_action": { "type": "string" },
+    "execution_gate": {
+      "type": "object",
+      "required": ["required"],
+      "properties": {
+        "required": { "type": "boolean" },
+        "reason": { "type": ["string", "null"] },
+        "policy_ref": { "type": ["string", "null"] }
+      }
+    },
+    "routing_policy": {
+      "type": "object",
+      "required": ["max_hops"],
+      "properties": {
+        "max_hops": { "type": "integer", "default": 16, "minimum": 1 }
+      }
+    }
+  }
+}
