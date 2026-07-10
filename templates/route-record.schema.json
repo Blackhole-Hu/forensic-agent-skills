@@ -12,7 +12,7 @@
       "type": "string",
       "pattern": "^route-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     },
-    "triggered_skill": { "type": "string" },
+    "triggered_skill": { "type": "string", "minLength": 1 },
     "route_basis": {
       "type": "array",
       "items": { "type": "string" }
@@ -33,7 +33,7 @@
             "type": "string",
             "pattern": "^step-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
-          "skill": { "type": "string" },
+          "skill": { "type": "string", "minLength": 1 },
           "dependency_step_ids": {
             "type": "array",
             "items": {
@@ -54,7 +54,11 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["handoff_id", "route_id", "from_step_id", "to_step_id", "from", "to", "reason", "status", "priority"],
+        "required": [
+          "handoff_id", "route_id", "from_step_id", "to_step_id",
+          "from", "to", "reason", "status", "priority",
+          "artifact_refs", "finding_refs", "visited_skills", "hop_count", "new_evidence_refs"
+        ],
         "properties": {
           "handoff_id": {
             "type": "string",
@@ -72,9 +76,9 @@
             "type": "string",
             "pattern": "^step-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
-          "from": { "type": "string" },
-          "to": { "type": "string" },
-          "reason": { "type": "string" },
+          "from": { "type": "string", "minLength": 1 },
+          "to": { "type": "string", "minLength": 1 },
+          "reason": { "type": "string", "minLength": 1 },
           "artifact_refs": {
             "type": "array",
             "items": {
@@ -114,7 +118,7 @@
         }
       }
     },
-    "evidence_scope": { "type": "string" },
+    "evidence_scope": { "type": "string", "minLength": 1 },
     "risk_level": {
       "type": "string",
       "enum": ["low", "medium", "high"]
@@ -133,6 +137,9 @@
         "properties": { "required": { "const": true } }
       },
       "then": {
+        "properties": {
+          "reason": { "type": "string", "minLength": 1 }
+        },
         "required": ["reason"]
       }
     },

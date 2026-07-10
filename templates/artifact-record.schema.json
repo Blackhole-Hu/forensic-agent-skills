@@ -5,27 +5,38 @@
   "description": "Phase 2 统一制品记录格式",
   "type": "object",
   "additionalProperties": false,
-  "required": ["artifact_id", "path", "hash", "preservation_status", "schema_version"],
+  "required": ["schema_version", "artifact_id", "path", "hash", "preservation_status"],
   "properties": {
     "schema_version": { "type": "string", "const": "1.0" },
     "artifact_id": {
       "type": "string",
       "pattern": "^artifact-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     },
-    "path": { "type": "string" },
+    "path": { "type": "string", "minLength": 1 },
     "size": { "type": ["integer", "null"], "minimum": 0 },
     "hash": {
       "type": "object",
       "additionalProperties": false,
       "required": ["algorithm", "value", "status"],
       "properties": {
-        "algorithm": { "type": "string" },
+        "algorithm": { "type": "string", "minLength": 1 },
         "value": { "type": ["string", "null"] },
         "status": {
           "type": "string",
           "enum": ["verified", "provided", "deferred", "unavailable"]
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "status": { "enum": ["verified", "provided"] } },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": { "value": { "type": "string", "minLength": 1 } }
+          }
+        }
+      ]
     },
     "preservation_status": {
       "type": "string",
@@ -34,10 +45,27 @@
     "deferred_reason": { "type": ["string", "null"] },
     "source": { "type": ["string", "null"] },
     "material_type": { "type": ["string", "null"] },
-    "created_at": { "type": ["string", "null"], "format": "date-time" },
+    "created_at": { "type": ["string", "null"] },
     "source_artifact_id": {
       "type": ["string", "null"],
       "pattern": "^artifact-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "hash": {
+            "properties": { "status": { "const": "deferred" } }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "deferred_reason": { "type": "string", "minLength": 1 }
+        },
+        "required": ["deferred_reason"]
+      }
+    }
+  ]
 }

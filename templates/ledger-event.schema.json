@@ -5,7 +5,7 @@
   "description": "Phase 2 统一证据事件格式",
   "type": "object",
   "additionalProperties": false,
-  "required": ["event_id", "event_type", "timestamp", "skill", "status", "schema_version"],
+  "required": ["schema_version", "event_id", "event_type", "timestamp", "skill", "status"],
   "properties": {
     "schema_version": { "type": "string", "const": "1.0" },
     "event_id": {
@@ -17,7 +17,7 @@
       "enum": ["command", "finding", "artifact", "handoff", "state-transition"]
     },
     "timestamp": { "type": "string", "format": "date-time" },
-    "skill": { "type": "string" },
+    "skill": { "type": "string", "minLength": 1 },
     "stage": { "type": ["string", "null"] },
     "artifact_refs": {
       "type": "array",
@@ -50,8 +50,8 @@
       "enum": ["pending", "in_progress", "retrying", "blocked", "completed", "failed", "skipped"]
     },
     "command": { "type": ["string", "null"] },
-    "started_at": { "type": ["string", "null"], "format": "date-time" },
-    "ended_at": { "type": ["string", "null"], "format": "date-time" },
+    "started_at": { "type": ["string", "null"] },
+    "ended_at": { "type": ["string", "null"] },
     "exit_code": { "type": ["integer", "null"] },
     "stdout_path": { "type": ["string", "null"] },
     "stderr_path": { "type": ["string", "null"] },
@@ -76,7 +76,11 @@
         "required": ["event_type"]
       },
       "then": {
-        "required": ["command", "started_at"]
+        "required": ["command", "started_at"],
+        "properties": {
+          "command": { "type": "string", "minLength": 1 },
+          "started_at": { "type": "string", "minLength": 1 }
+        }
       }
     },
     {
@@ -85,7 +89,11 @@
         "required": ["event_type"]
       },
       "then": {
-        "required": ["finding", "confidence"]
+        "required": ["finding", "confidence"],
+        "properties": {
+          "finding": { "type": "string", "minLength": 1 },
+          "confidence": { "type": "string", "enum": ["high", "medium", "low"] }
+        }
       }
     },
     {
@@ -94,7 +102,13 @@
         "required": ["event_type"]
       },
       "then": {
-        "required": ["handoff_id"]
+        "required": ["handoff_id"],
+        "properties": {
+          "handoff_id": {
+            "type": "string",
+            "pattern": "^hof-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        }
       }
     },
     {
@@ -103,10 +117,10 @@
         "required": ["event_type"]
       },
       "then": {
+        "required": ["artifact_refs"],
         "properties": {
           "artifact_refs": { "minItems": 1 }
-        },
-        "required": ["artifact_refs"]
+        }
       }
     },
     {
@@ -115,7 +129,10 @@
         "required": ["event_type"]
       },
       "then": {
-        "required": ["stage"]
+        "required": ["stage"],
+        "properties": {
+          "stage": { "type": "string", "minLength": 1 }
+        }
       }
     }
   ]

@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0",
+  "plan_id": "plan-001",
+  "route_id": "route-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  "source_artifacts": [],
+  "working_artifacts": [],
+  "backend": "qemu",
+  "backend_profile": {},
+  "current_stage": 3,
+  "overall_status": "in_progress",
+  "stages": [
+    {"stage": 0, "name": "plan-validation-preflight", "status": "completed", "attempt": 1, "commands": [{"command": "test"}], "outputs": {}, "evidence_event_ids": ["led-a1b2c3d4-e5f6-7890-abcd-ef1234567890"], "rollback_checkpoint": null, "error_class": null, "error_message": null, "next_stage": 1, "started_at": null, "completed_at": null},
+    {"stage": 1, "name": "workspace-source-preservation", "status": "completed", "attempt": 1, "commands": [{"command": "test"}], "outputs": {}, "evidence_event_ids": ["led-b2c3d4e5-f6a7-8901-bcde-f12345678901"], "rollback_checkpoint": null, "error_class": null, "error_message": null, "next_stage": 2, "started_at": null, "completed_at": null},
+    {"stage": 2, "name": "artifact-preparation", "status": "completed", "attempt": 1, "commands": [{"command": "test"}], "outputs": {}, "evidence_event_ids": ["led-c3d4e5f6-a7b8-9012-cdef-123456789012"], "rollback_checkpoint": null, "error_class": null, "error_message": null, "next_stage": 3, "started_at": null, "completed_at": null},
+    {"stage": 3, "name": "runtime-configuration", "status": "in_progress", "attempt": 1, "commands": [], "outputs": {}, "evidence_event_ids": [], "rollback_checkpoint": null, "error_class": null, "error_message": null, "next_stage": 4, "started_at": null, "completed_at": null},
+    {"stage": 4, "name": "network-configuration", "status": "pending", "attempt": 0, "commands": [], "outputs": {}, "evidence_event_ids": [], "rollback_checkpoint": null, "error_class": null, "error_message": null, "next_stage": 5, "started_at": null, "completed_at": null},
+    {"stage": 5, "name": "runtime-launch-stabilization", "status": "pending", "attempt": 0, "commands": [], "outputs": {}, "evidence_event_ids": [], "rollback_checkpoint": null, "error_class": null, "error_message": null, "next_stage": 6, "started_at": null, "completed_at": null},
+    {"stage": 7, "name": "service-discovery-connection-handoff", "status": "pending", "attempt": 0, "commands": [], "outputs": {}, "evidence_event_ids": [], "rollback_checkpoint": null, "error_class": null, "error_message": null, "next_stage": null, "started_at": null, "completed_at": null}
+  ],
+  "recovery_policy": {
+    "schema_version": "1.0",
+    "operations": {},
+    "default": {"auto_retry": false, "action": "replan"}
+  },
+  "rollback_available": true,
+  "can_continue_on_failure": false,
+  "updated_at": "2026-07-10T12:00:00Z"
+}

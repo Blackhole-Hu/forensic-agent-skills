@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "investigation_summary": {
+    "current_assessment": "test"
+  },
+  "route_record": {
+    "schema_version": "1.0",
+    "route_id": "route-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    "triggered_skill": "test",
+    "route_basis": ["test"],
+    "route_status": "active",
+    "route_plan": [],
+    "handoffs": [],
+    "evidence_scope": "test",
+    "risk_level": "low",
+    "execution_gate": {"required": false},
+    "routing_policy": {"max_hops": 16}
+  },
+  "findings": [],
+  "ledger_events": [],
+  "artifact_refs": [],
+  "payload": {}
+}

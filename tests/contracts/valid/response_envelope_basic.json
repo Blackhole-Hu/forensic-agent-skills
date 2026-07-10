@@ -1,0 +1,89 @@
+{
+  "schema_version": "1.0",
+  "investigation_summary": {
+    "current_assessment": "Linux server with suspicious SSH access detected",
+    "key_evidence": [
+      "Suspicious user 'backup' in /etc/passwd with uid 0",
+      "SSH login from 192.168.1.100 at 2026-07-10T12:00:00Z"
+    ],
+    "excluded_routes": ["Docker-based attack (no containers found)"]
+  },
+  "route_record": {
+    "schema_version": "1.0",
+    "route_id": "route-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    "triggered_skill": "server-forensics-router",
+    "route_basis": ["E01 disk image", "Linux filesystem"],
+    "mode_decision": "rebuild-and-connect",
+    "route_status": "active",
+    "route_plan": [
+      {
+        "route_step_id": "step-11111111-2222-3333-4444-555555555555",
+        "skill": "linux-server-forensics",
+        "dependency_step_ids": [],
+        "parallel_group": null,
+        "status": "completed"
+      }
+    ],
+    "handoffs": [],
+    "evidence_scope": "E01 image at /evidence/disk.E01",
+    "risk_level": "medium",
+    "next_action": "invoke webapp-server-forensics",
+    "execution_gate": {
+      "required": false,
+      "reason": null,
+      "policy_ref": null
+    },
+    "routing_policy": {
+      "max_hops": 16
+    }
+  },
+  "findings": [
+    {
+      "schema_version": "1.0",
+      "finding_id": "finding-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "description": "Suspicious user with uid 0",
+      "confidence": "high",
+      "evidence_refs": ["led-a1b2c3d4-e5f6-7890-abcd-ef1234567890"],
+      "artifact_refs": ["artifact-11111111-2222-3333-4444-555555555555"],
+      "category": "analysis",
+      "related_skill": "linux-server-forensics",
+      "created_at": null
+    }
+  ],
+  "ledger_events": [
+    {
+      "schema_version": "1.0",
+      "event_id": "led-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "event_type": "finding",
+      "timestamp": "2026-07-10T12:00:00Z",
+      "skill": "linux-server-forensics",
+      "stage": null,
+      "artifact_refs": [],
+      "parent_event_id": null,
+      "route_id": null,
+      "handoff_id": null,
+      "timeline_event_refs": [],
+      "status": "completed",
+      "command": null,
+      "started_at": null,
+      "ended_at": null,
+      "exit_code": null,
+      "stdout_path": null,
+      "stderr_path": null,
+      "output_artifact_refs": [],
+      "finding": "Suspicious user 'backup' found with uid 0",
+      "confidence": "high",
+      "next_action": null
+    }
+  ],
+  "artifact_refs": ["artifact-11111111-2222-3333-4444-555555555555"],
+  "payload": {
+    "suspicious_users": ["backup"],
+    "login_events": [],
+    "ssh_findings": [],
+    "privilege_events": [],
+    "persistence_points": [],
+    "command_history_findings": [],
+    "service_changes": []
+  }
+}

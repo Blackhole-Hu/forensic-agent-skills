@@ -83,7 +83,7 @@ payload: object                # skill 专用结果
   "exit_code": "<integer|null>",
   "stdout_path": "<path|null>",
   "stderr_path": "<path|null>",
-  "output_refs": [],
+  "output_artifact_refs": [],
   "finding": "<what-was-discovered|null>",
   "confidence": "high|medium|low|null",
   "next_action": "<what-to-do-next|null>"
@@ -105,33 +105,39 @@ payload: object                # skill 专用结果
 替代旧的 Route Trace。Schema: `templates/route-record.schema.json`
 
 ```yaml
+schema_version: "1.0"
 route_id: "route-<uuid>"
 triggered_skill: <skill-name>
 route_basis: array
 mode_decision: string|null
+route_status: active|completed|blocked|failed|cancelled
 route_plan:
-  - skill: <skill-name>
-    dependency: string|null
-    parallel: boolean
+  - route_step_id: "step-<uuid>"
+    skill: <skill-name>
+    dependency_step_ids: []      # step-<uuid> 引用
+    parallel_group: string|null
+    status: pending|running|completed|blocked|failed|skipped
 handoffs:
   - handoff_id: "hof-<uuid>"
     route_id: "route-<uuid>"
+    from_step_id: "step-<uuid>"
+    to_step_id: "step-<uuid>"
     from: <skill-name>
     to: <skill-name>
     reason: string
-    artifact_refs: []
-    finding_refs: []
-    visited_skills: []
+    artifact_refs: []            # artifact-<uuid>
+    finding_refs: []             # finding-<uuid>
+    visited_skills: []           # uniqueItems
     hop_count: integer
     status: pending|accepted|completed|rejected|blocked
     priority: critical|high|normal|low
     reentry_reason: string|null
-    new_evidence_refs: array
+    new_evidence_refs: array     # led-<uuid>
 evidence_scope: string
 risk_level: low|medium|high
-next_action: string
+next_action: string|null
 execution_gate:
-  required: boolean
+  required: boolean              # true 时 reason 必须非空
   reason: string|null
   policy_ref: string|null
 routing_policy:

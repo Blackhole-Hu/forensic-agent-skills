@@ -36,17 +36,136 @@
     }
   ],
   "backend": "qemu",
-  "backend_profile": {"memory_mb": 2048, "cpus": 2},
+  "backend_profile": {
+    "memory_mb": 2048,
+    "cpus": 2
+  },
   "current_stage": 3,
   "overall_status": "in_progress",
   "stages": [
-    {"stage": 0, "name": "plan-validation-preflight", "status": "completed", "attempt": 1, "commands": [{"command": "qemu-img --version"}], "outputs": {}, "evidence_event_ids": [], "rollback_checkpoint": null, "error_class": null, "error_message": null, "next_stage": 1, "started_at": null, "completed_at": null},
-    {"stage": 1, "name": "workspace-source-preservation", "status": "completed", "attempt": 1, "commands": [{"command": "mkdir -p /work"}], "outputs": {}, "evidence_event_ids": [], "rollback_checkpoint": null, "error_class": null, "error_message": null, "next_stage": 2, "started_at": null, "completed_at": null},
-    {"stage": 2, "name": "artifact-preparation", "status": "completed", "attempt": 1, "commands": [{"command": "qemu-img convert"}], "outputs": {}, "evidence_event_ids": [], "rollback_checkpoint": null, "error_class": null, "error_message": null, "next_stage": 3, "started_at": null, "completed_at": null},
-    {"stage": 3, "name": "runtime-configuration", "status": "in_progress", "attempt": 1, "commands": [], "outputs": {}, "evidence_event_ids": [], "rollback_checkpoint": null, "error_class": null, "error_message": null, "next_stage": 4, "started_at": null, "completed_at": null},
-    {"stage": 4, "name": "network-configuration", "status": "pending", "attempt": 0, "commands": [], "outputs": {}, "evidence_event_ids": [], "rollback_checkpoint": null, "error_class": null, "error_message": null, "next_stage": 5, "started_at": null, "completed_at": null},
-    {"stage": 5, "name": "runtime-launch-stabilization", "status": "pending", "attempt": 0, "commands": [], "outputs": {}, "evidence_event_ids": [], "rollback_checkpoint": null, "error_class": null, "error_message": null, "next_stage": 6, "started_at": null, "completed_at": null},
-    {"stage": 6, "name": "service-discovery-connection-handoff", "status": "pending", "attempt": 0, "commands": [], "outputs": {}, "evidence_event_ids": [], "rollback_checkpoint": null, "error_class": null, "error_message": null, "next_stage": null, "started_at": null, "completed_at": null}
+    {
+      "stage": 0,
+      "name": "plan-validation-preflight",
+      "status": "completed",
+      "attempt": 1,
+      "commands": [
+        {
+          "command": "qemu-img --version"
+        }
+      ],
+      "outputs": {},
+      "evidence_event_ids": [
+        "led-a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+      ],
+      "rollback_checkpoint": null,
+      "error_class": null,
+      "error_message": null,
+      "next_stage": 1,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "stage": 1,
+      "name": "workspace-source-preservation",
+      "status": "completed",
+      "attempt": 1,
+      "commands": [
+        {
+          "command": "mkdir -p /work"
+        }
+      ],
+      "outputs": {},
+      "evidence_event_ids": [
+        "led-b2c3d4e5-f6a7-8901-bcde-f12345678901"
+      ],
+      "rollback_checkpoint": null,
+      "error_class": null,
+      "error_message": null,
+      "next_stage": 2,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "stage": 2,
+      "name": "artifact-preparation",
+      "status": "completed",
+      "attempt": 1,
+      "commands": [
+        {
+          "command": "qemu-img convert"
+        }
+      ],
+      "outputs": {},
+      "evidence_event_ids": [
+        "led-c3d4e5f6-a7b8-9012-cdef-123456789012"
+      ],
+      "rollback_checkpoint": null,
+      "error_class": null,
+      "error_message": null,
+      "next_stage": 3,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "stage": 3,
+      "name": "runtime-configuration",
+      "status": "in_progress",
+      "attempt": 1,
+      "commands": [],
+      "outputs": {},
+      "evidence_event_ids": [],
+      "rollback_checkpoint": null,
+      "error_class": null,
+      "error_message": null,
+      "next_stage": 4,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "stage": 4,
+      "name": "network-configuration",
+      "status": "pending",
+      "attempt": 0,
+      "commands": [],
+      "outputs": {},
+      "evidence_event_ids": [],
+      "rollback_checkpoint": null,
+      "error_class": null,
+      "error_message": null,
+      "next_stage": 5,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "stage": 5,
+      "name": "runtime-launch-stabilization",
+      "status": "pending",
+      "attempt": 0,
+      "commands": [],
+      "outputs": {},
+      "evidence_event_ids": [],
+      "rollback_checkpoint": null,
+      "error_class": null,
+      "error_message": null,
+      "next_stage": 6,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "stage": 6,
+      "name": "service-discovery-connection-handoff",
+      "status": "pending",
+      "attempt": 0,
+      "commands": [],
+      "outputs": {},
+      "evidence_event_ids": [],
+      "rollback_checkpoint": null,
+      "error_class": null,
+      "error_message": null,
+      "next_stage": null,
+      "started_at": null,
+      "completed_at": null
+    }
   ],
   "recovery_policy": {
     "schema_version": "1.0",
@@ -54,27 +173,64 @@
       "artifact_export": {
         "required_capability": "ewf-export",
         "error_classes": {
-          "tool_failure": {"auto_retry": true, "max_attempts": 2, "tool_candidates": [{"tool": "ewfexport", "operation": "export"}], "action": "retry"}
+          "tool_failure": {
+            "auto_retry": true,
+            "max_attempts": 2,
+            "tool_candidates": [
+              {
+                "tool": "ewfexport",
+                "operation": "export"
+              }
+            ],
+            "action": "retry"
+          }
         }
       },
       "disk_format_conversion": {
         "required_capability": "disk-format-conversion",
         "error_classes": {
-          "tool_failure": {"auto_retry": true, "max_attempts": 2, "tool_candidates": [{"tool": "qemu-img", "operation": "convert"}], "action": "retry"}
+          "tool_failure": {
+            "auto_retry": true,
+            "max_attempts": 2,
+            "tool_candidates": [
+              {
+                "tool": "qemu-img",
+                "operation": "convert"
+              }
+            ],
+            "action": "retry"
+          }
         }
       },
       "runtime_configuration": {
         "error_classes": {
-          "config_generation_failure": {"auto_retry": false, "fallback_backends": ["qemu"], "action": "fallback"}
+          "config_generation_failure": {
+            "auto_retry": false,
+            "fallback_backends": [
+              "qemu"
+            ],
+            "action": "fallback"
+          }
         }
       },
       "runtime_launch": {
         "error_classes": {
-          "startup_timeout": {"auto_retry": true, "max_attempts": 1, "timeout_seconds": 120, "fallback_backends": ["qemu"], "action": "fallback"}
+          "startup_timeout": {
+            "auto_retry": true,
+            "max_attempts": 1,
+            "timeout_seconds": 120,
+            "fallback_backends": [
+              "qemu"
+            ],
+            "action": "fallback"
+          }
         }
       }
     },
-    "default": {"auto_retry": false, "action": "replan"}
+    "default": {
+      "auto_retry": false,
+      "action": "replan"
+    }
   },
   "rollback_available": true,
   "can_continue_on_failure": false,

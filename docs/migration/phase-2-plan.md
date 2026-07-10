@@ -141,7 +141,7 @@ report-writer (Phase 1) ←── 报告输出
   "exit_code": "<integer|null>",
   "stdout_path": "<path|null>",
   "stderr_path": "<path|null>",
-  "output_refs": [],
+  "output_artifact_refs": [],
   "finding": "<what-was-discovered|null>",
   "confidence": "high|medium|low|null",
   "next_action": "<what-to-do-next|null>"
@@ -184,20 +184,23 @@ report-writer (Phase 1) ←── 报告输出
 
 ```yaml
 route_record:
+  schema_version: "1.0"
   route_id: "route-<uuid>"
   triggered_skill: <skill-name>
   route_basis: array        # 触发依据列表
   mode_decision: string|null
+  route_status: active|completed|blocked|failed|cancelled
   route_plan:
-    - skill: <downstream-skill-1>
-      dependency: none|<skill-name>
-      parallel: false
-    - skill: <downstream-skill-2>
-      dependency: <skill-name>
-      parallel: true
+    - route_step_id: "step-<uuid>"
+      skill: <skill-name>
+      dependency_step_ids: ["step-<uuid>"]
+      parallel_group: null
+      status: pending|running|completed|blocked|failed|skipped
   handoffs:
     - handoff_id: "hof-<uuid>"
       route_id: "route-<uuid>"
+      from_step_id: "step-<uuid>"
+      to_step_id: "step-<uuid>"
       from: <skill-name>
       to: <skill-name>
       reason: <交接原因>
@@ -207,13 +210,17 @@ route_record:
       hop_count: 0
       status: pending|accepted|completed|rejected|blocked
       priority: critical|high|normal|low
+      reentry_reason: string|null
+      new_evidence_refs: []
   evidence_scope: string
   risk_level: low|medium|high
-  next_action: string
+  next_action: string|null
   execution_gate:
     required: boolean
     reason: string|null
     policy_ref: string|null
+  routing_policy:
+    max_hops: 16
 ```
 
 **防循环规则**：同一 `route_id` + 同一 evidence scope 不得重复进入同一 Skill，除非新增证据明确要求重新分析。
@@ -504,36 +511,49 @@ services_discovered: array
 
 ```yaml
 recovery_policy:
-  artifact_export:
-    # 从 EWF 等格式导出可处理的数据
-    required_capability: ewf-export
-    tool_candidates:
-      - ewfexport
-      - xmount
-    auto_retry: true
-    max_attempts: 2
-  disk_format_conversion:
-    # 磁盘格式转换（raw → vmdk, raw → qcow2 等）
-    required_capability: disk-format-conversion
-    tool_candidates:
-      - qemu-img
-      - vboxmanage-clonemedium
-    auto_retry: true
-    max_attempts: 2
-  runtime_configuration:
-    # 生成运行时配置
-    fallback_backends: ["qemu", "virtualbox"]
-    auto_retry: true
-    max_attempts: 1
-  runtime_launch:
-    # 启动运行时实例
-    fallback_backends: ["qemu"]
-    auto_retry: true
-    max_attempts: 1
-    timeout_seconds: 120
+  schema_version: "1.0"
+  operations:
+    artifact_export:
+      required_capability: ewf-export
+      error_classes:
+        tool_failure:
+          auto_retry: true
+          max_attempts: 2
+          tool_candidates:
+            - tool: ewfexport
+              operation: export
+            - tool: xmount
+              operation: mount
+          action: retry
+    disk_format_conversion:
+      required_capability: disk-format-conversion
+      error_classes:
+        tool_failure:
+          auto_retry: true
+          max_attempts: 2
+          tool_candidates:
+            - tool: qemu-img
+              operation: convert
+            - tool: VBoxManage
+              operation: clonemedium
+          action: retry
+    runtime_configuration:
+      error_classes:
+        config_generation_failure:
+          auto_retry: false
+          fallback_backends: ["qemu"]
+          action: fallback
+    runtime_launch:
+      error_classes:
+        startup_timeout:
+          auto_retry: true
+          max_attempts: 1
+          timeout_seconds: 120
+          fallback_backends: ["qemu"]
+          action: fallback
   default:
     auto_retry: false
-    action: "replan"
+    action: replan
 ```
 
 **注意**：Recovery Policy 使用 `required_capability` + `tool_candidates`，实际命令由 `tool-router` 根据本机可用能力选择。`ewfexport` 和 `qemu-img` 不是等价 fallback 工具，分别归入 `artifact_export` 和 `disk_format_conversion`。Backend fallback 仅用于 `runtime_configuration` 和 `runtime_launch`。
@@ -1297,7 +1317,7 @@ payload:
 ✅ 1.  "统一手边格式" → "统一交接格式"
 ✅ 2.  取消数据契约重复：route_plan/handoffs 仅在 route_record 中
 ✅ 3.  objective: string|null + objective_status
-✅ 4.  Ledger Event 增加 event_type/parent_event_id/status/started_at/ended_at/stdout_path/stderr_path/output_refs/artifact_refs；ID 前缀 led-
+✅ 4.  Ledger Event 增加 event_type/parent_event_id/status/started_at/ended_at/stdout_path/stderr_path/output_artifact_refs/artifact_refs；ID 前缀 led-
 ✅ 5.  删除 Authorization Required；ask_before_action → execution_gate
 ✅ 6.  Executor Stage 0-6 泛化（prepared_artifacts/runtime_config/runtime_instance/runtime_running）
 ✅ 7.  统一 backend 枚举：vmware|qemu|virtualbox|docker|wsl|manual
@@ -1314,39 +1334,3 @@ payload:
 ### 下一步
 
 v3.1 通过后，执行 **Commit 1：计划、统一契约和 Schema**，然后开始迁移具体 Skill。
-
----
-
-## 附录 A：Commit 1 Contract Corrections
-
-以下修正在 Commit 1 执行时同步落实，已反映在 `docs/data-contracts.md` 和各 Schema 文件中：
-
-1. **标准输出统一为 6 个字段**：`investigation_summary`、`route_record`、`findings`、`ledger_events`、`artifact_refs`、`payload`。所有专项结果（`runtime_running`、`session_summary`、`table_map`、`timeline` 等）全部进入 `payload`。
-
-2. **material_info 使用 artifact_refs**：不使用单一 `hash` 和 `size`，Hash 和大小通过 Artifact 记录获取。server-forensics-router 不在 payload 中重复 material_info 字段。
-
-3. **修正所有伪 YAML 结构**：remote-live 使用 `connections: array`，environment 使用真正的 object 字段。
-
-4. **recovery_policy 按 operation + error_class 组织**：tool_candidates 使用 `tool` + `operation` 结构，不使用虚构的可执行文件名。
-
-5. **rebuild-status schema 增加 deferred_reason**：hash 对象要求 `algorithm`、`value`、`status`，command 对象要求 `command`。
-
-6. **dependency 统一为 string|null**：routing policy 增加 `max_hops`，重新进入 Skill 时记录 `reentry_reason` 和 `new_evidence_refs`。
-
-7. **创建 4 个新 Schema**：`timeline-event.schema.json`、`route-record.schema.json`、`request-envelope.schema.json`、`response-envelope.schema.json`。timeline 输入使用 `timezone_hint`，触发条件改为 `if temporal reconstruction is needed`。
-
-8. **planner 字段允许为空**：`network_mode` 增加 `backend-default` 和 `none`，`port_mapping`、`credential_source`、`credential_reference`、`authentication_method` 允许 null。
-
-9. **调用链更新**：`timeline-reconstruction (if temporal reconstruction is needed)` 替代 `if multiple time sources`。
-
-10. **新增文件清单**：
-    - `docs/data-contracts.md` — 数据契约文档
-    - `templates/ledger-event.schema.json`
-    - `templates/route-record.schema.json`
-    - `templates/request-envelope.schema.json`
-    - `templates/response-envelope.schema.json`
-    - `templates/timeline-event.schema.json`
-    - `templates/rebuild-status.schema.json`（已更新）
-    - `templates/investigation-summary.md`
-    - `templates/route-record.md`
-    - `templates/README.md`
