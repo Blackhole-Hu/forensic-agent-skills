@@ -427,23 +427,163 @@ payload:
 
 ```yaml
 payload:
-  environment: object
-  detected_components: array
-  source_paths: array
-  config_paths: array
-  log_paths: array
-  route_map: array
+  environment:
+    type: remote-live|rebuilt-vm|offline-image|source-package
+    plan_id: string|null
+    session_id: string|null
+  web_profile:
+    server_software: array
+    frameworks: array
+    languages: array
+    document_roots: array
+    deployment_model: string|null
+    timezone: string|null
+  detected_components:
+    - component_id: string
+      name: string
+      component_type: web-server|reverse-proxy|framework|runtime|application|waf|other
+      version: string|null
+      artifact_refs: array
+      ledger_event_refs: array
+      confidence: high|medium|low
+  source_paths:
+    - path_id: string
+      path: string
+      role: document-root|source-root|public-assets|upload-directory|template-directory|dependency-directory|other
+      artifact_ref: string|null
+      availability: present|missing|partial|unreadable
+  config_paths:
+    - config_id: string
+      path: string
+      config_type: virtual-host|reverse-proxy|application|framework|environment|routing|security|other
+      artifact_ref: string|null
+      availability: present|missing|partial|unreadable
+  log_source_map:
+    - source_id: string
+      source_type: access-log|error-log|application-log|proxy-log|waf-log|audit-log|other
+      path: string
+      availability: present|missing|partial|unreadable
+      coverage_start: string|null
+      coverage_end: string|null
+      timezone_hint: object|null
+      artifact_ref: string|null
+      gap_notes: array
+  route_map:
+    - route_entry_id: string
+      method: string|null
+      path_pattern: string
+      handler: string|null
+      source_path: string|null
+      authentication_required: boolean|null
+      artifact_refs: array
+      confidence: high|medium|low
   secret_findings:
-    - secret_type: string
+    - secret_id: string
+      secret_type: password|token|api-key|private-key|database-credential|cookie-secret|encryption-key|other
       redacted_value: string
-      source_ref: string
-      evidence_ref: string
-  access_log_findings: array
-  suspected_entrypoint: string|null
+      source_path: string
+      source_artifact_id: string
+      line_or_key: string|null
+      exposure_context: string
+      finding_refs: array
+      ledger_event_refs: array
+      confidence: high|medium|low
+  access_log_findings:
+    - finding_id: string
+      original_timestamp: string|null
+      normalized_timestamp: ISO8601|null
+      source_ip: string|null
+      forwarded_for: array
+      attributed_client_ip: string|null
+      method: string|null
+      raw_path: string|null
+      normalized_path: string|null
+      status_code: integer|null
+      user_agent: string|null
+      request_id: string|null
+      indicators: array
+      redaction_applied: boolean
+      normalization_steps: array
+      client_ip_basis: socket-peer|trusted-proxy-chain|untrusted-forwarded|unknown
+      artifact_refs: array
+      ledger_event_refs: array
+      confidence: high|medium|low
+  suspected_entrypoint:
+    entrypoint_id: string
+    method: string|null
+    path: string|null
+    route_entry_id: string|null
+    source_path: string|null
+    first_seen: ISO8601|null
+    basis: array
+    artifact_refs: array
+    finding_refs: array
+    ledger_event_refs: array
+    confidence: high|medium|low
   suspect_ip: string|null
-  webshell_candidate: array
-  source_log_crosscheck: object
+  suspect_ip_basis:
+    - basis_type: direct-log|trusted-proxy-chain|cross-log-correlation|request-chain|other
+      description: string
+      artifact_refs: array
+      finding_refs: array
+      ledger_event_refs: array
+  suspect_ip_confidence: high|medium|low|null
+  webshell_candidate:
+    - candidate_id: string
+      path: string
+      language: string|null
+      source_artifact_id: string
+      indicators: array
+      execution_observed: boolean|null
+      artifact_refs: array
+      finding_refs: array
+      ledger_event_refs: array
+      confidence: high|medium|low
+  source_log_crosscheck:
+    status: matched|partial|unmatched|not-applicable
+    links:
+      - route_entry_id: string|null
+        source_path: string|null
+        log_finding_ids: array
+        basis: array
+    gaps: array
+  timeline_candidates:
+    - candidate_id: string
+      original_timestamp: string|null
+      normalized_timestamp: ISO8601|null
+      timezone_offset: string|null
+      timezone_name: string|null
+      timezone_assumption: string|null
+      clock_skew_seconds: integer|null
+      time_precision: exact|second|minute|day|unknown
+      source_type_hint: string
+      source_artifact_id: string
+      parser_id: string
+      actor: string|null
+      action: string
+      target: string|null
+      ledger_event_refs: array
+      confidence: high|medium|low
+      normalization_status: ready|needs-review|unsupported-source
+  cross_domain_candidates:
+    - candidate_id: string
+      skill: string
+      basis: array
+      confidence: high|medium|low
+      connection_ids: array
+      artifact_refs: array
+      finding_refs: array
+      targeted_collection_request:
+        actions: array
+        paths: array
+        max_output_bytes: integer|null
+        reason: string
+  blockers: array
 ```
+
+`suspected_entrypoint` 整体允许为 null：无足够证据确定入口时不强行选择；多个候选无法收敛时保持 null 并在 findings 或 gaps 中说明。非 null 时必须包含文档中列出的全部字段。
+
+`targeted_collection_request` 整体允许为 null：不需要补充采集时；非 null 时四个字段必须存在；只用于交给 `remote-server-live-response`。
 
 ### 8.7 database-server-forensics
 

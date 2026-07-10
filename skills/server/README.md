@@ -13,7 +13,7 @@ See `docs/data-contracts.md` for unified request/response contracts and `templat
 | `server-rebuild-executor/` | Rebuild execution (Stage 0-6) | Completed |
 | `remote-server-live-response/` | Live server acquisition via SSH/Docker/WinRM/RDP | Completed |
 | `linux-server-forensics/` | Linux system-level forensics | Completed |
-| `webapp-server-forensics/` | Web/API forensics (Nginx/Apache/PHP/Node) | Pending |
+| `webapp-server-forensics/` | Web/API forensics (Nginx/Apache/PHP/Node) | Completed |
 | `database-server-forensics/` | Database forensics (MySQL/Redis/PostgreSQL/MongoDB) | Pending |
 | `docker-container-forensics/` | Docker container forensics | Pending |
 | `cluster-virtualization-forensics/` | PVE/Ceph/virtualization topology and storage mapping | Pending |
