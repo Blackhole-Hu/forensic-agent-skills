@@ -6,15 +6,15 @@ Complete server forensic chain: rebuild, live response, domain-specific analysis
 
 | Skill | Purpose | Status |
 |-------|---------|--------|
-| `server-forensics-router/` | Server forensics entry, mode selection | Pending (Phase 2) |
-| `server-rebuild-planner/` | Rebuild planning (VMware/QEMU/Docker) | Pending |
-| `server-rebuild-executor/` | Rebuild execution (needs-refactor) | Pending |
-| `remote-server-live-response/` | Live server acquisition via SSH/Docker/WinRM/RDP | Pending |
-| `linux-server-forensics/` | Linux system-level forensics | Pending |
-| `webapp-server-forensics/` | Web/API forensics (Nginx/Apache/PHP/Node) | Pending |
-| `database-server-forensics/` | Database forensics (MySQL/Redis/PostgreSQL/MongoDB) | Pending |
-| `docker-container-forensics/` | Docker container forensics | Pending |
-| `cluster-virtualization-forensics/` | PVE/Ceph/LVM/RAID/ZFS/cluster forensics | Pending |
+| `server-forensics-router/` | Server forensics entry, mode selection | Draft |
+| `server-rebuild-planner/` | Rebuild planning (VMware/QEMU/Docker) | Draft |
+| `server-rebuild-executor/` | Rebuild execution (needs-refactor) | Draft |
+| `remote-server-live-response/` | Live server acquisition via SSH/Docker/WinRM/RDP | Draft |
+| `linux-server-forensics/` | Linux system-level forensics | Draft |
+| `webapp-server-forensics/` | Web/API forensics (Nginx/Apache/PHP/Node) | Draft |
+| `database-server-forensics/` | Database forensics (MySQL/Redis/PostgreSQL/MongoDB) | Draft |
+| `docker-container-forensics/` | Docker container forensics | Draft |
+| `cluster-virtualization-forensics/` | PVE/Ceph/LVM/RAID/ZFS/cluster forensics | Draft |
 
 ## Chain
 
