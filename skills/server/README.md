@@ -15,7 +15,7 @@ See `docs/data-contracts.md` for unified request/response contracts and `templat
 | `linux-server-forensics/` | Linux system-level forensics | Completed |
 | `webapp-server-forensics/` | Web/API forensics (Nginx/Apache/PHP/Node) | Completed |
 | `database-server-forensics/` | Database forensics (MySQL/Redis/PostgreSQL/MongoDB) | Completed |
-| `docker-container-forensics/` | Docker container forensics | Pending |
+| `docker-container-forensics/` | Docker container forensics | Completed |
 | `cluster-virtualization-forensics/` | PVE/Ceph/virtualization topology and storage mapping | Pending |
 | `timeline-reconstruction/` | Multi-source event timeline reconstruction | Pending (in `skills/timeline/`) |
 
