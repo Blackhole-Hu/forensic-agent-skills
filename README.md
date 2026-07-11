@@ -38,6 +38,7 @@ evidence-ledger is written throughout the chain and read by answer-gate/report-w
 |----------|------|---------|
 | **Core** | `skills/core/` | Control loop, routing, evidence tracking, validation, output |
 | **Triage** | `skills/triage/` | File classification, large artifact handling, uncommon media |
+| **Domain** | `skills/domain/` | Network, disk, stego, crypto, RE, Android, cross-evidence, vehicle, AI, optimization |
 | **Server** | `skills/server/` | Server forensics: rebuild, live response, Linux/Web/DB/Docker/cluster |
 | **Timeline** | `skills/timeline/` | Multi-source event timeline reconstruction |
 | **Recovery** | `skills/recovery/` | Proprietary formats, firmware, NAS/RAID, encryption, malware |
@@ -56,6 +57,7 @@ Migrating from `E:\CompetitionTools\skills` (41 skills) in four phases. See [`do
 | Phase | Scope | Status |
 |-------|-------|--------|
 | **Phase 1** | Core control loop (9 modules) | Drafts created; under review |
+| **Phase 1+** | Domain forensic skills (10 modules) | Drafts created |
 | **Phase 2** | Server forensic chain (10 modules) | Pending |
 | **Phase 3** | Uncommon media & recovery (5 modules) | Pending |
 | **Phase 4** | Competition-specific output (2 modules) | Pending |
@@ -75,6 +77,7 @@ forensic-agent-skills/
 └── skills/                            ← The skills themselves
     ├── core/
     ├── triage/
+    ├── domain/
     ├── server/
     ├── timeline/
     ├── recovery/
@@ -87,6 +90,7 @@ forensic-agent-skills/
 - [x] Agent configuration (`AGENTS.md`, `docs/agents/`)
 - [x] Migration inventory (`docs/migration/old-skills-inventory.md`)
 - [x] Phase 1 — Core control loop drafts
+- [x] Phase 1+ — Domain forensic skills (10 skills)
 - [ ] Phase 1 — Human review and refinement
 - [ ] Phase 2 — Server forensic chain
 - [ ] Phase 3 — Uncommon media & recovery
