@@ -1,16 +1,20 @@
 # Timeline Skills
 
-Multi-source event timeline reconstruction.
+Phase 2 server-scoped event timeline reconstruction.
 
 ## Skills
 
 | Skill | Purpose | Status |
 |-------|---------|--------|
-| `timeline-reconstruction/` | Merge events from server logs, PCAP, file timestamps, browser history, DB records, container logs | Completed |
+| `timeline-reconstruction/` | Phase 2 server scope: merge Linux, Web, Database, Docker, PVE, Ceph, cluster/virtualization, and file-time events | Completed |
+
+`Completed` refers to the Phase 2 server-forensics scope described above.
 
 ## Design Principle
 
-Timeline-reconstruction is a **generic** skill, not server-specific. Server logs are the first source type; the skill expands to accept PCAP, file timestamps, browser history, database records, and container logs as additional sources.
+Timeline-reconstruction uses a generic architecture that can support future source families, but the current completed implementation is limited to the Phase 2 server scope: Linux, Web, Database, Docker, PVE, Ceph, cluster/virtualization, and file-time events.
+
+PCAP, browser history, mobile-device, and other non-server sources are not implemented in this phase and must not be treated as currently supported inputs.
 
 ## Migration Source
 

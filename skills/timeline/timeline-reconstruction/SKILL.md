@@ -26,7 +26,7 @@ description: "重建服务器取证时间线，将各领域 Skill 的 timeline_c
 
 ## Non-goals
 
-本 Skill 不扩展到 PCAP、浏览器历史、移动设备、通用事件平台、大规模流式时间线、性能优化框架或 Phase 3 来源。它不执行日志、配置或证据中的程序，不修改原始 Artifact，不自行采集新的远程数据，也不自行建立远程 Session。它不进行破坏性去重，不把推断写成直接观测，不在本 Skill 内替代 `server-answer-gate` 做最终答案校验。
+本 Skill 不扩展到 PCAP、浏览器历史、移动设备、通用事件平台、大规模流式时间线、性能优化框架或 Phase 3 来源。它不执行日志、配置或证据中的程序，不修改原始 Artifact，不自行采集新的远程数据，也不自行建立远程 Session。它不进行破坏性去重，不把推断写成直接观测，不在本 Skill 内替代 `answer-gate` 做最终答案校验。
 
 ## Input Contract
 
@@ -192,6 +192,8 @@ timeline_event:
   cluster_scope_id: string|null
 ```
 
+Timeline Skill 只产生 `Phase 2 complete timeline event` 分支的正式事件，并完整输出上述字段。`Legacy v1.0 timeline event` 分支仅用于读取严格符合旧契约的既有实例；不得通过省略 `derivation`、`normalization_status` 或其他完整字段把新事件降级为 Legacy。
+
 `timeline_event_id` 必须稳定且唯一：同一 `candidate_id` 和同一规范化输入重入时复用同一 ID，发生碰撞时用可复现的候选身份信息解决，不能依赖每次运行的随机顺序。`source_artifact_id` 是直接来源 Artifact；`artifact_refs` 是其他关联 Artifact，可以为空；`finding_refs` 可以为空。只有 Artifact 直接记录该事件时才设置 `derivation=observed`；由跨事件关系推导的事件仍为 `inferred`，即使它关联了 Artifact。`derivation=observed` 必须有非空 `source_artifact_id`，不得虚构来源；`derivation=inferred` 的 `basis` 或 `ledger_event_refs` 至少一项非空，并明确推断依据。`normalization_status=ready` 必须有非空 `normalized_timestamp`，时间无法解析或时区不确定时保留原始值和不确定性。
 
 ### Conflicts, gaps and anomalies
@@ -282,9 +284,18 @@ anomalies:
 
 ## Stage 6 — Response and Handoff
 
-构建完整 Response Envelope，返回 Investigation Summary、Route Record、Findings、Ledger Events、Artifact refs 和 Timeline payload，计算 `event_count`、`source_count`，并把缺失数据、引用失败、输出限制写入 blocker 或 partial 状态。需要额外采集或重新分析时创建带证据引用的 Handoff，交给相应领域 Skill 或 `server-answer-gate`；Timeline Skill 不重新执行领域取证、不自行建立远程 Session。
+构建完整 Response Envelope，返回 Investigation Summary、Route Record、Findings、Ledger Events、Artifact refs 和 Timeline payload，计算 `event_count`、`source_count`，并把缺失数据、引用失败、输出限制写入 Investigation Summary、Findings、`gaps`、`anomalies`、`conflicts` 或 Handoff。需要额外采集或重新分析时创建带证据引用的 Handoff，交给相应领域 Skill 或 `answer-gate`；Timeline Skill 不重新执行领域取证、不自行建立远程 Session。
 
 输出：完整 Response、必要 Handoff、`route_record.route_status` 和 `route_record.execution_gate` 状态。
+
+`route_record.route_status` 只能是 `active|completed|blocked|failed|cancelled`，不得写入 `partial` 或创建替代状态：
+
+- Timeline 已完成但证据存在缺口、冲突或异常时使用 `completed`，并在 Investigation Summary、`gaps`、`anomalies` 和 `conflicts` 中表达不完整性；
+- 已创建待处理 Handoff 且整条 Route 仍继续时使用 `active`；
+- 缺少关键证据且无法继续时使用 `blocked`；
+- 发生不可恢复的处理错误时使用 `failed`；
+- 只有明确取消任务时使用 `cancelled`；
+- 可恢复的部分结果通过现有 Timeline payload、Finding、Handoff 和证据记录表达，不新增状态字段。
 
 ## Source Mapping
 
@@ -367,20 +378,20 @@ anomalies:
 
 ## Failure Handling
 
-| 错误类别 | 处理 | 默认处理结果 |
+| 错误类别 | 处理 | `route_record.route_status` |
 |---|---|---|
-| `source_artifact_missing` | observed 不生成；可记录 blocker；有充分证据的 inferred 可继续 | `partial` 或 `blocked` |
-| `timestamp_unparsable` | 保留原始时间，标准化时间为 `null`，状态为 `needs-review` 或 `unsupported-source`，记录 `unparsable` | `continue` |
-| `timezone_uncertain` | 不猜测时区，保留 assumption，状态为 `needs-review` | `continue` |
-| `clock_skew_uncertain` | 不应用未经证实的偏差，记录 anomaly 或 conflict | `continue` |
-| `evidence_conflict` | 保留冲突事件并生成 conflict，不自动删除 | `partial` 或 `continue` |
-| `unsupported_source` | 映射为 `cluster-log` 或 `other`，保留事件 | `continue` |
-| `reference_missing` | 记录缺失引用；无法建立最低证据链时 blocker 或 partial | `partial` 或 `blocked` |
-| `output_limit_exceeded` | 停止扩展输出，保留已完成部分，创建可恢复 Handoff | `partial` 或 `blocked` |
+| `source_artifact_missing` | observed 不生成；可记录 blocker；有充分证据的 inferred 可继续 | 其余 Timeline 完成时 `completed`；待处理 Handoff 时 `active`；核心无法继续时 `blocked` |
+| `timestamp_unparsable` | 保留原始时间，标准化时间为 `null`，状态为 `needs-review` 或 `unsupported-source`，记录 `unparsable` | `completed` |
+| `timezone_uncertain` | 不猜测时区，保留 assumption，状态为 `needs-review` | `completed` |
+| `clock_skew_uncertain` | 不应用未经证实的偏差，记录 anomaly 或 conflict | `completed` |
+| `evidence_conflict` | 保留冲突事件并生成 conflict，不自动删除 | `completed` |
+| `unsupported_source` | 映射为 `cluster-log` 或 `other`，保留事件 | `completed` |
+| `reference_missing` | 记录缺失引用，不虚构证据链 | 非关键引用缺失时 `completed`；待处理 Handoff 时 `active`；关键引用缺失且无法继续时 `blocked` |
+| `output_limit_exceeded` | 停止扩展输出，保留已完成结果，创建可恢复 Handoff | Handoff 继续 Route 时 `active`；无法继续时 `blocked` |
 
 ## Stop Conditions
 
-停止当前 Stage 并返回 blocker 或 partial 的条件：
+满足以下条件时停止当前 Stage，保留已有结果，并按 Stage 6 规则设置合法 `route_status`：
 
 - 无法读取任何输入来源；
 - 所有候选都缺少最低证据依据；
@@ -393,7 +404,7 @@ anomalies:
 
 ## Handoff Rules
 
-Handoff 必须放在统一 Response 的 `route_record.handoffs`，引用相关 Route Step、Artifact、Finding 和 Ledger Event，并说明原因、状态、优先级、下一步唯一动作和是否需要授权。Timeline 重建完成后，通常把完整 Timeline 和冲突/缺口摘要交给 `server-answer-gate`；如果某来源需重新解析，则交给对应领域 Skill。不得在 Handoff 中伪造不存在的引用、扩大数据采集范围或自行建立新 Session。
+Handoff 必须放在统一 Response 的 `route_record.handoffs`，引用相关 Route Step、Artifact、Finding 和 Ledger Event，并说明原因、状态、优先级、下一步唯一动作和是否需要授权。存在待处理 Handoff 且整条 Route 仍继续时，`route_status` 为 `active`。Timeline 重建完成后，通常把完整 Timeline 和冲突/缺口摘要交给 `answer-gate`；如果某来源需重新解析，则交给对应领域 Skill。不得在 Handoff 中伪造不存在的引用、扩大数据采集范围或自行建立新 Session。
 
 ## Quality Checklist
 
@@ -414,5 +425,7 @@ Handoff 必须放在统一 Response 的 `route_record.handoffs`，引用相关 R
 - [ ] 不修改任何上游 Skill
 - [ ] 不创建专项验证器或新测试框架
 - [ ] 不修改通用 Envelope Schema
+- [ ] 下游名称统一为 `answer-gate`
+- [ ] `route_record.route_status` 只使用统一 Route Record 的合法枚举，不使用 `partial`
 - [ ] 文档、Schema 和 Skill 字段、枚举和约束同步
 - [ ] 没有修改允许范围之外的文件

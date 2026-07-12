@@ -198,7 +198,12 @@ routing_policy:
 8. 缺少时区时不得默认 UTC、系统本地时区或 `+08:00`。
 9. 只有 Artifact 直接记录该事件时才使用 `observed`；由跨事件关系推导的事件仍为 `inferred`，即使它关联了 Artifact。
 
-Timeline Skill 产生的新正式事件必须输出完整字段。Schema 对既有 v1.0 实例保持增量兼容；显式提供 `derivation` 或 `normalization_status` 时，条件约束仍严格生效。
+Schema 使用互斥的 `oneOf` 分支：
+
+- **Legacy v1.0 timeline event**：严格复现旧契约，只接受旧版 10 个 `source_type`，要求非空 `source_artifact_id`、至少一个 Ledger Event 引用，以及至少一个存在且非空的原始或标准化时间。Legacy 分支不接受 `normalization_status`、`derivation`、`source_subtype`、`artifact_refs`、`finding_refs`、`basis`、`cluster_scope_id` 或扩展后的新 `source_type`。
+- **Phase 2 complete timeline event**：要求本节示例中的全部字段出现；允许 `artifact_refs`、`ledger_event_refs`、`finding_refs` 和 `basis` 为空数组，并继续执行 observed / inferred 与时间标准化条件。为保留 `missing-timestamp` 等事件，`original_timestamp` 和 `normalized_timestamp` 可以同时为 `null`，但 `normalization_status` 不得为 `ready`。
+
+Timeline Skill 新产生的正式 Timeline Event 必须进入 Complete 分支。不得通过省略 `derivation` 和 `normalization_status` 降级为 Legacy；只添加部分新增字段也不能进入 Legacy 分支。
 
 ### ID 前缀
 
@@ -2000,6 +2005,17 @@ anomalies:
 | 5 | Stable Merge and Anomaly Detection | 排序后 `timeline`、`anomalies`、`event_count` |
 | 6 | Response and Handoff | 完整 Response、必要 Handoff、route 和 execution gate 状态 |
 
+#### Route status semantics
+
+`route_record.route_status` 只能是 `active|completed|blocked|failed|cancelled`，不得写入 `partial` 或创建替代状态：
+
+- Timeline 已完成但证据存在缺口、冲突或异常时使用 `completed`，并在 Investigation Summary、`gaps`、`anomalies` 和 `conflicts` 中记录不完整性；
+- 已创建待处理 Handoff 且整条 Route 仍继续时使用 `active`；
+- 缺少关键证据且无法继续时使用 `blocked`；
+- 不可恢复的处理错误使用 `failed`；
+- 只有明确取消任务时使用 `cancelled`；
+- 可恢复的部分结果通过已有 Timeline payload、Finding、Handoff 和证据记录表达，不新增状态字段。
+
 #### Evidence and handoff rules
 
 - 每个 observed Event 必须有直接来源 Artifact；每个 inferred Event 必须有非空 basis 或 Ledger Event；
@@ -2007,5 +2023,5 @@ anomalies:
 - 时间修正必须保留依据，原始 Artifact 保持只读，negative Finding 必须有证据回指；
 - 普通解析失败、单条时区不确定和单个 unsupported source 不自动触发 execution gate；
 - Timeline Skill 不重新执行领域取证、不自行建立远程 Session；
-- 需要额外采集或重新分析时，在 `route_record.handoffs` 创建证据化 Handoff；完成后把 Timeline 交给 `server-answer-gate`；
-- 输出限制达到时停止扩展，保留已完成部分，并以 `partial` 或 `blocked` 返回可恢复 Handoff。
+- 需要额外采集或重新分析时，在 `route_record.handoffs` 创建证据化 Handoff；Route 继续时使用 `route_status=active`，完成后把 Timeline 交给 `answer-gate`；
+- 输出限制达到时停止扩展并保留已完成结果；可恢复 Handoff 继续 Route 时使用 `active`，缺少关键证据且无法继续时使用 `blocked`。
