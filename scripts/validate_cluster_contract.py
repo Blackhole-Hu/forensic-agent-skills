@@ -100,6 +100,8 @@ REQUIRED_EFFECTIVE_LIMITS = {
     "max_depth", "max_objects", "max_paths",
 }
 
+EFFECTIVE_LIMIT_FIELDS = {"value", "status", "basis"}
+
 REQUIRED_REQUEST_TOP_FIELDS = {"schema_version", "request"}
 REQUIRED_REQUEST_NESTED = {
     "material_info", "objective", "objective_status", "context", "payload",
@@ -126,8 +128,111 @@ REQUIRED_RESPONSE_PAYLOAD = {
     "cross_domain_candidates", "effective_limits", "blockers",
 }
 
+REQUIRED_CLUSTER_PROFILE_FIELDS = {
+    "cluster_scope_id", "cluster_id", "cluster_name",
+    "virtualization_platform", "platform_version",
+    "control_plane_components", "distributed_storage_components",
+    "configured_node_count", "observed_node_count",
+    "observation_mode", "observed_at", "artifact_refs",
+    "ledger_event_refs", "basis", "confidence",
+}
+REQUIRED_NODE_MAP_FIELDS = {
+    "cluster_scope_id", "node_id", "hostname", "platform_node_ref",
+    "roles", "membership_status", "management_addresses",
+    "observation_mode", "observed_at", "artifact_refs",
+    "ledger_event_refs", "basis", "confidence",
+}
+REQUIRED_DISK_MAP_FIELDS = {
+    "cluster_scope_id", "disk_id", "owner_node_id", "layer_node_id",
+    "device_path", "stable_identifier", "size_bytes", "sector_size",
+    "member_role", "availability", "observation_mode", "artifact_refs",
+    "ledger_event_refs", "basis", "confidence",
+}
+REQUIRED_STORAGE_MAP_FIELDS = {
+    "cluster_scope_id", "storage_id", "owner_node_ids", "storage_type",
+    "configured_name", "configured_path_or_target", "shared",
+    "content_roles", "backing_layer_node_refs", "health_status",
+    "observation_mode", "artifact_refs", "ledger_event_refs",
+    "basis", "confidence",
+}
+REQUIRED_LAYER_NODE_FIELDS = {
+    "cluster_scope_id", "layer_node_id", "node_type", "entity_ref",
+    "owner_node_id", "name", "location", "size_bytes", "availability",
+    "identity_status", "observation_mode", "observed_at", "artifact_refs",
+    "ledger_event_refs", "basis", "confidence",
+}
+REQUIRED_LAYER_EDGE_FIELDS = {
+    "cluster_scope_id", "layer_edge_id", "from_layer_node_id",
+    "to_layer_node_id", "relation", "observation_mode", "artifact_refs",
+    "ledger_event_refs", "basis", "confidence",
+}
+REQUIRED_LAYER_GAP_FIELDS = {
+    "cluster_scope_id", "gap_id", "expected_from_layer_node_id",
+    "expected_to_layer_node_id", "missing_layer_type", "reason",
+    "impact", "artifact_refs", "ledger_event_refs", "basis", "confidence",
+}
+REQUIRED_LAYER_CONFLICT_FIELDS = {
+    "cluster_scope_id", "conflict_id", "left_ref", "right_ref",
+    "conflict_type", "resolution_status", "preferred_ref",
+    "artifact_refs", "ledger_event_refs", "basis", "confidence",
+}
+REQUIRED_VM_MAP_FIELDS = {
+    "cluster_scope_id", "workload_id", "owner_node_id", "object_type",
+    "name", "platform", "configured_state", "runtime_state",
+    "observation_mode", "artifact_refs", "ledger_event_refs",
+    "basis", "confidence",
+}
+REQUIRED_VM_DISK_MAP_FIELDS = {
+    "cluster_scope_id", "vm_disk_mapping_id", "workload_id",
+    "object_type", "device_slot", "storage_id", "configured_volume_ref",
+    "terminal_layer_node_id", "layer_edge_refs", "image_candidate_refs",
+    "disk_role", "observation_mode", "artifact_refs",
+    "ledger_event_refs", "basis", "confidence",
+}
+REQUIRED_SNAPSHOT_MAP_FIELDS = {
+    "cluster_scope_id", "snapshot_id", "owner_type", "owner_ref",
+    "parent_snapshot_id", "snapshot_type", "created_at", "state",
+    "layer_node_refs", "backing_edge_refs", "observation_mode",
+    "artifact_refs", "ledger_event_refs", "basis", "confidence",
+}
+REQUIRED_IMAGE_CANDIDATE_FIELDS = {
+    "cluster_scope_id", "candidate_id", "object_type", "location_type",
+    "location", "content_availability", "identity_status", "size_bytes",
+    "format", "backing_refs", "layer_node_refs", "source_artifact_id",
+    "analysis_readiness", "analysis_readiness_basis",
+    "large_artifact_status", "artifact_refs", "ledger_event_refs",
+    "basis", "confidence",
+}
+REQUIRED_TIMELINE_CANDIDATE_FIELDS = {
+    "cluster_scope_id", "candidate_id", "original_timestamp",
+    "normalized_timestamp", "timezone_offset", "timezone_name",
+    "timezone_assumption", "clock_skew_seconds", "time_precision",
+    "source_type_hint", "source_artifact_id", "parser_id", "actor",
+    "action", "target", "ledger_event_refs", "basis", "confidence",
+    "normalization_status",
+}
+REQUIRED_CROSS_DOMAIN_FIELDS = {
+    "candidate_id", "cluster_scope_id", "skill", "basis", "confidence",
+    "connection_ids", "artifact_refs", "finding_refs",
+    "ledger_event_refs", "dependency_step_ids", "workload_refs",
+    "planner_authorization", "targeted_collection_request",
+}
+REQUIRED_BLOCKER_FIELDS = {
+    "blocker_id", "cluster_scope_id", "error_class", "scope",
+    "target_ref", "message", "recoverable", "required_handoff",
+    "artifact_refs", "ledger_event_refs", "basis", "confidence",
+}
+
 LIVE_RESPONSE_SKILL = "remote-server-live-response"
 TARGETED_COLLECTION_PATH_FIELDS = {"action_id", "path_role", "path"}
+
+CROSS_DOMAIN_SKILL_ENUM = {
+    "server-rebuild-planner", "server-rebuild-executor",
+    "remote-server-live-response", "linux-server-forensics",
+    "docker-container-forensics", "database-server-forensics",
+    "webapp-server-forensics", "timeline-reconstruction",
+    "large-artifact-strategy",
+}
 
 
 def pairs(left: set[str], right: set[str]) -> set[tuple[str, str]]:
@@ -258,7 +363,6 @@ def parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
 
 
 def _parse_posix_path(path: str) -> tuple[bool, list[str]]:
-    """Parse a POSIX path, returning (is_absolute, parts)."""
     is_abs = path.startswith("/")
     stripped = path.lstrip("/")
     parts = [p for p in stripped.split("/") if p and p != "."]
@@ -266,7 +370,6 @@ def _parse_posix_path(path: str) -> tuple[bool, list[str]]:
 
 
 def _parse_windows_path(path: str) -> tuple[str | None, bool, list[str]]:
-    """Parse a Windows path. Returns (drive_or_unc, is_absolute, parts)."""
     normalized = path.replace("/", "\\")
     drive = None
     is_abs = False
@@ -294,15 +397,13 @@ def _parse_windows_path(path: str) -> tuple[str | None, bool, list[str]]:
 
 
 def _classify_path(path: str) -> tuple[str, str | None, bool, list[str]]:
-    """Classify a path as posix/windows, return (kind, anchor, is_abs, parts)."""
     if "\x00" in path:
         return "invalid", None, False, []
-    if re.match(r"[A-Za-z]:\\", path) or path.startswith("\\\\"):
+    if re.match(r"[A-Za-z]:[/\\]", path) or path.startswith("\\\\"):
         drive, is_abs, parts = _parse_windows_path(path)
         return "windows", drive, is_abs, parts
     is_abs, parts = _parse_posix_path(path)
-    kind = "posix" if is_abs or not parts else "posix"
-    return kind, None, is_abs, parts
+    return "posix", None, is_abs, parts
 
 
 def path_is_within(candidate: str, root: str, recursive: bool, max_depth: int | None) -> bool:
@@ -346,14 +447,23 @@ def _check_duplicate_ids(
     return errors
 
 
-def _check_scoped_ref(
-    cluster_scope_id: str,
-    ref_set: set[tuple[str, str]],
+def _check_required_fields(
+    record: dict[str, Any],
+    required: set[str],
     label: str,
 ) -> list[str]:
     errors: list[str] = []
-    if (cluster_scope_id,) not in {(k[0],) for k in ref_set}:
-        errors.append(f"{label} cluster_scope_id {cluster_scope_id} not found in referenced set")
+    missing = required - set(record.keys())
+    if missing:
+        errors.append(f"{label} missing required fields: {sorted(missing)}")
+    return errors
+
+
+def _check_non_empty_id(record: dict[str, Any], field: str, label: str) -> list[str]:
+    errors: list[str] = []
+    val = record.get(field)
+    if not isinstance(val, str) or not val:
+        errors.append(f"{label} {field} must be non-empty string")
     return errors
 
 
@@ -440,20 +550,27 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
     connection_ids = set(environment.get("connection_ids", []))
     session_id = environment.get("session_id")
     cluster_target_list = scope.get("allowed_cluster_targets", [])
-    cluster_targets = {item.get("cluster_scope_id"): item for item in cluster_target_list}
-    if len(cluster_targets) != len(cluster_target_list):
-        errors.append("allowed_cluster_targets cluster_scope_id must be unique")
+
+    # allowed_cluster_targets: reject exact duplicate composite records only
+    _check_duplicate_ids(
+        cluster_target_list,
+        ("cluster_scope_id", "connection_id", "target_ref", "endpoint_role"),
+        "allowed_cluster_targets",
+    )
+    # Build lookup: (cluster_scope_id, connection_id) -> target
+    cluster_target_lookup: dict[tuple[str, str | None], dict[str, Any]] = {}
+    for item in cluster_target_list:
+        key = (item.get("cluster_scope_id"), item.get("connection_id"))
+        cluster_target_lookup[key] = item
+
     if mode in LIVE_MODES:
         if not isinstance(session_id, str) or not session_id or not connection_ids:
             errors.append("live mode requires session_id and connection_ids")
-        if any(not isinstance(connection_id, str) or not connection_id for connection_id in connection_ids):
+        if any(not isinstance(cid, str) or not cid for cid in connection_ids):
             errors.append("live connection_ids must contain non-empty strings")
         for target in cluster_target_list:
-            if (
-                not isinstance(target.get("connection_id"), str)
-                or not target.get("connection_id")
-                or target.get("connection_id") not in connection_ids
-            ):
+            cid = target.get("connection_id")
+            if not isinstance(cid, str) or not cid or cid not in connection_ids:
                 errors.append("live cluster target connection is not in current Session")
     elif mode in OFFLINE_MODES:
         if session_id is not None or connection_ids:
@@ -478,7 +595,7 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
     else:
         errors.append("unknown access_mode")
 
-    # Cluster scope reference validation: object targets must reference allowed_cluster_targets
+    # Cluster scope reference validation
     allowed_cluster_ids = {item.get("cluster_scope_id") for item in cluster_target_list}
     for label, items, id_field in [
         ("allowed_node_targets", scope.get("allowed_node_targets", []), "node_id"),
@@ -492,13 +609,11 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
             if csid not in allowed_cluster_ids:
                 errors.append(f"{label} references non-existent cluster_scope_id: {csid}")
 
-    # disk_set_members must reference allowed_cluster_targets
     for member in scope.get("disk_set_members", []):
         csid = member.get("cluster_scope_id")
         if csid not in allowed_cluster_ids:
             errors.append(f"disk_set_member references non-existent cluster_scope_id: {csid}")
 
-    # allowed_paths must reference allowed_cluster_targets (live/rebuilt)
     for item in scope.get("allowed_paths", []):
         csid = item.get("cluster_scope_id")
         if mode in LIVE_MODES and csid not in allowed_cluster_ids:
@@ -530,9 +645,10 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
 
     # Response cluster_profiles validation
     response_cluster_profiles = response_payload.get("cluster_profiles", [])
-    profile_scope_ids = [p.get("cluster_scope_id") for p in response_cluster_profiles]
     seen_profile_ids: set[str] = set()
-    for psid in profile_scope_ids:
+    for p in response_cluster_profiles:
+        errors.extend(_check_required_fields(p, REQUIRED_CLUSTER_PROFILE_FIELDS, "cluster_profile"))
+        psid = p.get("cluster_scope_id")
         if psid in seen_profile_ids:
             errors.append(f"cluster_profiles duplicate cluster_scope_id: {psid}")
         seen_profile_ids.add(psid)
@@ -555,6 +671,104 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
             csid = rec.get("cluster_scope_id")
             if csid not in seen_profile_ids:
                 errors.append(f"{map_name} record references non-existent cluster_profile: {csid}")
+
+    # Also check layer_map, image_candidates, timeline_candidates, cross_domain_candidates, blockers
+    for ln in response_payload.get("layer_map", {}).get("nodes", []):
+        csid = ln.get("cluster_scope_id")
+        if csid not in seen_profile_ids:
+            errors.append(f"layer node references non-existent cluster_profile: {csid}")
+    for le in response_payload.get("layer_map", {}).get("edges", []):
+        csid = le.get("cluster_scope_id")
+        if csid not in seen_profile_ids:
+            errors.append(f"layer edge references non-existent cluster_profile: {csid}")
+    for lg in response_payload.get("layer_map", {}).get("gaps", []):
+        csid = lg.get("cluster_scope_id")
+        if csid not in seen_profile_ids:
+            errors.append(f"layer gap references non-existent cluster_profile: {csid}")
+    for lc in response_payload.get("layer_map", {}).get("conflicts", []):
+        csid = lc.get("cluster_scope_id")
+        if csid not in seen_profile_ids:
+            errors.append(f"layer conflict references non-existent cluster_profile: {csid}")
+    for img in response_payload.get("image_candidates", []):
+        csid = img.get("cluster_scope_id")
+        if csid not in seen_profile_ids:
+            errors.append(f"image_candidate references non-existent cluster_profile: {csid}")
+    for tc in response_payload.get("timeline_candidates", []):
+        csid = tc.get("cluster_scope_id")
+        if csid not in seen_profile_ids:
+            errors.append(f"timeline_candidate references non-existent cluster_profile: {csid}")
+    for cdc in response_payload.get("cross_domain_candidates", []):
+        csid = cdc.get("cluster_scope_id")
+        if csid not in seen_profile_ids:
+            errors.append(f"cross_domain_candidate references non-existent cluster_profile: {csid}")
+    for blk in response_payload.get("blockers", []):
+        csid = blk.get("cluster_scope_id")
+        if csid is not None and csid not in seen_profile_ids:
+            errors.append(f"blocker references non-existent cluster_profile: {csid}")
+
+    # Required-field checks for all record types
+    for rec in response_payload.get("node_map", []):
+        errors.extend(_check_required_fields(rec, REQUIRED_NODE_MAP_FIELDS, "node_map"))
+    for rec in response_payload.get("disk_map", []):
+        errors.extend(_check_required_fields(rec, REQUIRED_DISK_MAP_FIELDS, "disk_map"))
+    for rec in response_payload.get("storage_map", []):
+        errors.extend(_check_required_fields(rec, REQUIRED_STORAGE_MAP_FIELDS, "storage_map"))
+    for rec in response_payload.get("vm_map", []):
+        errors.extend(_check_required_fields(rec, REQUIRED_VM_MAP_FIELDS, "vm_map"))
+    for rec in response_payload.get("vm_disk_map", []):
+        errors.extend(_check_required_fields(rec, REQUIRED_VM_DISK_MAP_FIELDS, "vm_disk_map"))
+    for rec in response_payload.get("snapshot_map", []):
+        errors.extend(_check_required_fields(rec, REQUIRED_SNAPSHOT_MAP_FIELDS, "snapshot_map"))
+    for rec in response_payload.get("image_candidates", []):
+        errors.extend(_check_required_fields(rec, REQUIRED_IMAGE_CANDIDATE_FIELDS, "image_candidate"))
+    for rec in response_payload.get("timeline_candidates", []):
+        errors.extend(_check_required_fields(rec, REQUIRED_TIMELINE_CANDIDATE_FIELDS, "timeline_candidate"))
+    for rec in response_payload.get("cross_domain_candidates", []):
+        errors.extend(_check_required_fields(rec, REQUIRED_CROSS_DOMAIN_FIELDS, "cross_domain_candidate"))
+    for rec in response_payload.get("blockers", []):
+        errors.extend(_check_required_fields(rec, REQUIRED_BLOCKER_FIELDS, "blocker"))
+
+    # Layer map sub-record required fields
+    for ln in response_payload.get("layer_map", {}).get("nodes", []):
+        errors.extend(_check_required_fields(ln, REQUIRED_LAYER_NODE_FIELDS, "layer_node"))
+    for le in response_payload.get("layer_map", {}).get("edges", []):
+        errors.extend(_check_required_fields(le, REQUIRED_LAYER_EDGE_FIELDS, "layer_edge"))
+    for lg in response_payload.get("layer_map", {}).get("gaps", []):
+        errors.extend(_check_required_fields(lg, REQUIRED_LAYER_GAP_FIELDS, "layer_gap"))
+    for lc in response_payload.get("layer_map", {}).get("conflicts", []):
+        errors.extend(_check_required_fields(lc, REQUIRED_LAYER_CONFLICT_FIELDS, "layer_conflict"))
+
+    # Effective limits: each entry must have exactly {value, status, basis}
+    effective_limits = response_payload.get("effective_limits", {})
+    limit_keys = set(effective_limits.keys())
+    if limit_keys != REQUIRED_EFFECTIVE_LIMITS:
+        missing = REQUIRED_EFFECTIVE_LIMITS - limit_keys
+        extra = limit_keys - REQUIRED_EFFECTIVE_LIMITS
+        if missing:
+            errors.append(f"effective_limits missing required limits: {sorted(missing)}")
+        if extra:
+            errors.append(f"effective_limits has unknown limits: {sorted(extra)}")
+    for limit_name, limit in effective_limits.items():
+        if not isinstance(limit, dict):
+            errors.append(f"effective limit {limit_name} is not an object")
+            continue
+        limit_actual = set(limit.keys())
+        if limit_actual != EFFECTIVE_LIMIT_FIELDS:
+            missing_lf = EFFECTIVE_LIMIT_FIELDS - limit_actual
+            if missing_lf:
+                errors.append(f"effective limit {limit_name} missing fields: {sorted(missing_lf)}")
+        status = limit.get("status")
+        value = limit.get("value")
+        if not limit.get("basis"):
+            errors.append(f"effective limit {limit_name} lacks basis")
+        if status == "resolved":
+            if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+                errors.append(f"resolved effective limit {limit_name} must be a positive integer")
+        elif status in {"unresolved", "not-applicable"}:
+            if value is not None:
+                errors.append(f"non-resolved effective limit {limit_name} must have null value")
+        else:
+            errors.append(f"unknown effective limit status for {limit_name}")
 
     # Duplicate ID checks on Response maps
     errors.extend(_check_duplicate_ids(
@@ -596,6 +810,23 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
     errors.extend(_check_duplicate_ids(
         response_payload.get("blockers", []),
         ("blocker_id",), "blockers",
+    ))
+    # Layer sub-record duplicate IDs
+    errors.extend(_check_duplicate_ids(
+        response_payload.get("layer_map", {}).get("nodes", []),
+        ("cluster_scope_id", "layer_node_id"), "layer_node",
+    ))
+    errors.extend(_check_duplicate_ids(
+        response_payload.get("layer_map", {}).get("edges", []),
+        ("cluster_scope_id", "layer_edge_id"), "layer_edge",
+    ))
+    errors.extend(_check_duplicate_ids(
+        response_payload.get("layer_map", {}).get("gaps", []),
+        ("cluster_scope_id", "gap_id"), "layer_gap",
+    ))
+    errors.extend(_check_duplicate_ids(
+        response_payload.get("layer_map", {}).get("conflicts", []),
+        ("cluster_scope_id", "conflict_id"), "layer_conflict",
     ))
 
     node_map = {
@@ -661,18 +892,13 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
         (x.get("cluster_scope_id"), x.get("layer_node_id")): x
         for x in response_payload.get("layer_map", {}).get("nodes", [])
     }
-    # Layer node ID non-empty
     for key, layer_node in nodes.items():
-        if not key[1]:
-            errors.append("layer_node_id must be non-empty")
+        errors.extend(_check_non_empty_id(layer_node, "layer_node_id", "layer_node"))
         owner_node_id = layer_node.get("owner_node_id")
         if owner_node_id is not None and (key[0], owner_node_id) not in node_map:
             errors.append("Layer Node owner_node_id does not reference node_map")
-    # Layer edge ID non-empty and from != to
     for edge in response_payload.get("layer_map", {}).get("edges", []):
-        edge_id = edge.get("layer_edge_id")
-        if not edge_id:
-            errors.append("layer_edge_id must be non-empty")
+        errors.extend(_check_non_empty_id(edge, "layer_edge_id", "layer_edge"))
         from_node = edge.get("from_layer_node_id")
         to_node = edge.get("to_layer_node_id")
         if from_node == to_node:
@@ -755,8 +981,7 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
             if (cluster_id, ref) not in layer_edge_ids:
                 errors.append("vm_disk_map references a missing scoped Layer Edge")
         if edge_refs and terminal and (cluster_id, terminal) in nodes:
-            terminal_type = nodes[(cluster_id, terminal)].get("node_type")
-            connected_node_ids = set()
+            connected_node_ids: set[str] = set()
             for ref in edge_refs:
                 edge_key = (cluster_id, ref)
                 for edge in response_payload.get("layer_map", {}).get("edges", []):
@@ -777,12 +1002,24 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
     collection_requests: list[dict[str, Any]] = []
     all_action_ids: list[str] = []
     for candidate in response_payload.get("cross_domain_candidates", []):
+        # Handoff skill enum check
+        cdc_skill = candidate.get("skill")
+        if cdc_skill not in CROSS_DOMAIN_SKILL_ENUM:
+            errors.append(f"cross_domain_candidate skill not in frozen enum: {cdc_skill}")
+        # Required non-empty IDs
+        errors.extend(_check_non_empty_id(candidate, "candidate_id", "cross_domain_candidate"))
+        errors.extend(_check_non_empty_id(candidate, "cluster_scope_id", "cross_domain_candidate"))
+        if not candidate.get("basis"):
+            errors.append("cross_domain_candidate basis must be non-empty")
+        if candidate.get("confidence") not in {"high", "medium", "low"}:
+            errors.append("cross_domain_candidate confidence must be high|medium|low")
+
         for workload_ref in candidate.get("workload_refs", []):
             key = (workload_ref.get("cluster_scope_id"), workload_ref.get("workload_id"))
             workload = vm_map.get(key)
             if not workload or workload.get("object_type") != workload_ref.get("object_type"):
                 errors.append("Handoff workload reference/type mismatch")
-        if candidate.get("skill") == "server-rebuild-executor":
+        if cdc_skill == "server-rebuild-executor":
             auth = candidate.get("planner_authorization", {})
             planner_step = route_steps.get(auth.get("planner_step_id"))
             plan_ids = {
@@ -801,11 +1038,9 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
             ):
                 errors.append("executor candidate lacks approved Planner dependency")
         request_value = candidate.get("targeted_collection_request")
-        candidate_skill = candidate.get("skill")
         if request_value is not None:
-            # Only remote-server-live-response may carry targeted_collection_request
-            if candidate_skill != LIVE_RESPONSE_SKILL:
-                errors.append(f"targeted_collection_request on non-live-response skill: {candidate_skill}")
+            if cdc_skill != LIVE_RESPONSE_SKILL:
+                errors.append(f"targeted_collection_request on non-live-response skill: {cdc_skill}")
             required_collection_fields = {"actions", "paths", "max_output_bytes", "reason"}
             actual_collection_fields = set(request_value.keys())
             if actual_collection_fields != required_collection_fields:
@@ -818,28 +1053,32 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
             if not request_value.get("actions") or not request_value.get("reason"):
                 errors.append("targeted_collection_request requires non-empty actions and reason")
             action_ids = [action.get("action_id") for action in request_value.get("actions", [])]
-            if any(not action_id for action_id in action_ids) or len(action_ids) != len(set(action_ids)):
+            if any(not aid for aid in action_ids) or len(action_ids) != len(set(action_ids)):
                 errors.append("targeted collection action_id must be non-empty and unique")
             all_action_ids.extend(action_ids)
             for action in request_value.get("actions", []):
                 errors.extend(_validate_action_fields(action))
-            # Path records must only contain allowed fields
+            # Path records
             for path_record in request_value.get("paths", []):
                 path_keys = set(path_record.keys())
                 if path_keys != TARGETED_COLLECTION_PATH_FIELDS:
-                    extra = path_keys - TARGETED_COLLECTION_PATH_FIELDS
-                    if extra:
-                        errors.append(f"targeted collection path record has unknown fields: {sorted(extra)}")
+                    missing_pr = TARGETED_COLLECTION_PATH_FIELDS - path_keys
+                    extra_pr = path_keys - TARGETED_COLLECTION_PATH_FIELDS
+                    if missing_pr:
+                        errors.append(f"targeted collection path record missing fields: {sorted(missing_pr)}")
+                    if extra_pr:
+                        errors.append(f"targeted collection path record has unknown fields: {sorted(extra_pr)}")
                 if path_record.get("action_id") not in action_ids:
                     errors.append("targeted collection path references an unknown Action")
             paths_by_action: dict[str, list[dict[str, Any]]] = {}
             for path_record in request_value.get("paths", []):
                 paths_by_action.setdefault(path_record.get("action_id"), []).append(path_record)
+            # Non-bounded actions must not have path records with config/log roles
             for action in request_value.get("actions", []):
                 aid = action.get("action_id")
                 atype = action.get("action_type")
+                path_records = paths_by_action.get(aid, [])
                 if atype in BOUND_PATH_ACTIONS:
-                    path_records = paths_by_action.get(aid, [])
                     if len(path_records) != 1:
                         errors.append("bounded Action must have exactly one path record")
                     elif path_records[0].get("path") != action.get("source_path"):
@@ -850,6 +1089,10 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
                     )
                     if path_records and path_records[0].get("path_role") != expected_role:
                         errors.append(f"bounded {atype} path_role must be {expected_role}")
+                else:
+                    for pr in path_records:
+                        if pr.get("path_role") in {"remote-config-source", "remote-log-source"}:
+                            errors.append("non-bounded Action must not carry config/log path records")
             collection_requests.append(request_value)
             actions.extend(request_value.get("actions", []))
 
@@ -860,33 +1103,6 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
             if aid in seen_global:
                 errors.append(f"duplicate global action_id: {aid}")
             seen_global.add(aid)
-
-    effective_limits = response_payload.get("effective_limits", {})
-    # Must contain exactly the 13 frozen limits
-    limit_keys = set(effective_limits.keys())
-    if limit_keys != REQUIRED_EFFECTIVE_LIMITS:
-        missing = REQUIRED_EFFECTIVE_LIMITS - limit_keys
-        extra = limit_keys - REQUIRED_EFFECTIVE_LIMITS
-        if missing:
-            errors.append(f"effective_limits missing required limits: {sorted(missing)}")
-        if extra:
-            errors.append(f"effective_limits has unknown limits: {sorted(extra)}")
-    for limit_name, limit in effective_limits.items():
-        if not isinstance(limit, dict):
-            errors.append(f"effective limit {limit_name} is not an object")
-            continue
-        status = limit.get("status")
-        value = limit.get("value")
-        if not limit.get("basis"):
-            errors.append(f"effective limit {limit_name} lacks basis")
-        if status == "resolved":
-            if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
-                errors.append(f"resolved effective limit {limit_name} must be a positive integer")
-        elif status in {"unresolved", "not-applicable"}:
-            if value is not None:
-                errors.append(f"non-resolved effective limit {limit_name} must have null value")
-        else:
-            errors.append(f"unknown effective limit status for {limit_name}")
 
     required_action_limits = {
         "max_actions": effective_limits.get("max_actions", {}),
@@ -899,7 +1115,6 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
     if isinstance(max_actions, int) and len(actions) > max_actions:
         errors.append("live Action count exceeds effective limit")
 
-    # Targeted collection request-level limits
     for request_value in collection_requests:
         request_limit = request_value.get("max_output_bytes")
         output_limit = required_action_limits["max_output_bytes"].get("value")
@@ -907,7 +1122,6 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
             errors.append("targeted collection max_output_bytes must be positive")
         elif isinstance(output_limit, int) and request_limit > output_limit:
             errors.append("targeted collection output exceeds effective limit")
-        # Sum of action max_output_bytes must not exceed request max_output_bytes
         action_sum = sum(
             a.get("max_output_bytes", 0)
             for a in request_value.get("actions", [])
@@ -915,8 +1129,6 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
         )
         if isinstance(request_limit, int) and action_sum > request_limit:
             errors.append("targeted collection action output sum exceeds request max_output_bytes")
-
-        # Bounded config/log specific limits
         config_limit = effective_limits.get("max_config_bytes", {})
         log_limit = effective_limits.get("max_log_bytes", {})
         for action in request_value.get("actions", []):
@@ -941,8 +1153,9 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
         target_ref = action.get("target_ref")
         if mode not in LIVE_MODES:
             errors.append("offline mode cannot produce live Action")
-        target = cluster_targets.get(cluster_id)
-        if not target or target.get("connection_id") != connection_id or connection_id not in connection_ids:
+        # Lookup by (cluster_scope_id, connection_id)
+        target = cluster_target_lookup.get((cluster_id, connection_id))
+        if not target or connection_id not in connection_ids:
             errors.append("Action connection/Cluster scope mismatch")
         target_type = action.get("target_type")
         action_type = action.get("action_type")
@@ -957,16 +1170,16 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
         if target_type == "cluster" and target_ref != (target or {}).get("target_ref"):
             errors.append("Cluster Action target_ref is outside allowed_cluster_targets")
         max_objects = action.get("max_objects")
-        max_output_bytes = action.get("max_output_bytes")
+        max_output_bytes_action = action.get("max_output_bytes")
         object_limit = required_action_limits["max_objects_per_action"].get("value")
         output_limit = required_action_limits["max_output_bytes"].get("value")
         if not isinstance(max_objects, int) or max_objects <= 0:
             errors.append("Action max_objects must be positive")
         elif isinstance(object_limit, int) and max_objects > object_limit:
             errors.append("Action max_objects exceeds effective limit")
-        if not isinstance(max_output_bytes, int) or max_output_bytes <= 0:
+        if not isinstance(max_output_bytes_action, int) or max_output_bytes_action <= 0:
             errors.append("Action max_output_bytes must be positive")
-        elif isinstance(output_limit, int) and max_output_bytes > output_limit:
+        elif isinstance(output_limit, int) and max_output_bytes_action > output_limit:
             errors.append("Action max_output_bytes exceeds effective limit")
         if action.get("action_type") in BOUND_PATH_ACTIONS:
             if target_type != "node":
@@ -1002,6 +1215,17 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
     response_environment = response_payload.get("environment", {})
     for artifact_key in ("root_artifact_refs", "collection_artifact_refs", "artifact_refs"):
         artifact_ids.update(response_environment.get(artifact_key, []))
+
+    # Negative Finding evidence validation
+    for finding in response.get("findings", []):
+        if finding.get("category") == "negative":
+            evidence_refs = finding.get("evidence_refs")
+            if not isinstance(evidence_refs, list) or not evidence_refs:
+                errors.append("negative Finding must have non-empty evidence_refs")
+            else:
+                for ref in evidence_refs:
+                    if ref not in events:
+                        errors.append(f"negative Finding evidence_ref {ref} does not reference a Ledger Event")
 
     image_blockers = {
         (x.get("cluster_scope_id"), x.get("target_ref"))
@@ -1103,13 +1327,20 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
 
     # Response environment consistency
     resp_env = response_payload.get("environment", {})
-    if resp_env.get("access_mode") is not None and resp_env.get("access_mode") != mode:
+    resp_mode = resp_env.get("access_mode")
+    if resp_mode is None:
+        errors.append("Response payload access_mode is missing")
+    elif resp_mode != mode:
         errors.append("Response payload access_mode differs from Request access_mode")
     if mode in LIVE_MODES:
         resp_session = resp_env.get("session_id")
-        if resp_session is not None and resp_session != session_id:
+        if resp_session is None:
+            errors.append("live Response session_id must be non-null")
+        elif resp_session != session_id:
             errors.append("live Response session_id differs from Request session_id")
         resp_conn_ids = set(resp_env.get("connection_ids", []))
+        if not resp_conn_ids:
+            errors.append("live Response connection_ids must be non-empty")
         unauthorized_conns = resp_conn_ids - connection_ids
         if unauthorized_conns:
             errors.append(f"live Response contains unauthorized connection_ids: {unauthorized_conns}")
@@ -1231,59 +1462,97 @@ def minimal_case() -> tuple[dict[str, Any], dict[str, Any]]:
         "ledger_events": [],
         "artifact_refs": [],
         "payload": {
-            "environment": {"plan_id": "plan-1", "session_id": "session-1", "connection_ids": ["conn-1"]},
+            "environment": {"plan_id": "plan-1", "session_id": "session-1", "connection_ids": ["conn-1"], "access_mode": "live-cluster"},
             "access_mode": "live-cluster",
             "cluster_profiles": [{
                 "cluster_scope_id": "cluster-1",
                 "cluster_id": "pve-cluster-1",
                 "cluster_name": "test-cluster",
                 "virtualization_platform": "proxmox-ve",
+                "platform_version": None,
+                "control_plane_components": [],
+                "distributed_storage_components": [],
+                "configured_node_count": 1,
+                "observed_node_count": 1,
                 "observation_mode": "live",
+                "observed_at": None,
+                "artifact_refs": [],
+                "ledger_event_refs": [],
                 "basis": ["PVE API response"],
                 "confidence": "high",
             }],
             "node_map": [{
                 "cluster_scope_id": "cluster-1", "node_id": "node-1",
-                "hostname": "pve-node-1", "observation_mode": "live",
+                "hostname": "pve-node-1", "platform_node_ref": None,
+                "roles": ["pve-node"], "membership_status": "member",
+                "management_addresses": ["10.0.0.1"],
+                "observation_mode": "live", "observed_at": None,
+                "artifact_refs": [], "ledger_event_refs": [],
                 "basis": ["PVE API"], "confidence": "high",
             }],
             "disk_map": [{
                 "cluster_scope_id": "cluster-1", "disk_id": "disk-1",
                 "owner_node_id": "node-1", "layer_node_id": "layer-disk-1",
-                "observation_mode": "inferred", "basis": ["disk listing"], "confidence": "medium",
+                "device_path": "/dev/sda", "stable_identifier": None,
+                "size_bytes": None, "sector_size": None,
+                "member_role": "system-disk", "availability": "present",
+                "observation_mode": "inferred",
+                "artifact_refs": [], "ledger_event_refs": [],
+                "basis": ["disk listing"], "confidence": "medium",
             }],
             "storage_map": [{
                 "cluster_scope_id": "cluster-1", "storage_id": "storage-1",
                 "owner_node_ids": ["node-1"], "storage_type": "directory",
+                "configured_name": None, "configured_path_or_target": None,
+                "shared": None, "content_roles": [],
                 "backing_layer_node_refs": [], "health_status": "unknown",
-                "observation_mode": "inferred", "basis": ["storage listing"], "confidence": "medium",
+                "observation_mode": "inferred",
+                "artifact_refs": [], "ledger_event_refs": [],
+                "basis": ["storage listing"], "confidence": "medium",
             }],
             "layer_map": {
                 "nodes": [
                     {
                         "cluster_scope_id": "cluster-1", "layer_node_id": "layer-disk-1",
-                        "node_type": "physical-disk", "owner_node_id": "node-1",
+                        "node_type": "physical-disk", "entity_ref": None,
+                        "owner_node_id": "node-1", "name": None, "location": None,
+                        "size_bytes": None, "availability": "present",
+                        "identity_status": "unverified", "observation_mode": "inferred",
+                        "observed_at": None, "artifact_refs": [], "ledger_event_refs": [],
+                        "basis": ["disk listing"], "confidence": "medium",
                     },
                     {
                         "cluster_scope_id": "cluster-1", "layer_node_id": "layer-vm",
-                        "node_type": "vm-disk", "owner_node_id": None,
+                        "node_type": "vm-disk", "entity_ref": None,
+                        "owner_node_id": None, "name": None, "location": None,
+                        "size_bytes": None, "availability": "present",
+                        "identity_status": "unverified", "observation_mode": "inferred",
+                        "observed_at": None, "artifact_refs": [], "ledger_event_refs": [],
+                        "basis": ["VM config"], "confidence": "medium",
                     },
                 ],
                 "edges": [],
+                "gaps": [],
+                "conflicts": [],
             },
             "vm_map": [{
                 "cluster_scope_id": "cluster-1", "workload_id": "vm-1",
-                "object_type": "vm", "platform": "pve-qemu",
-                "observation_mode": "live", "basis": ["PVE API"], "confidence": "high",
+                "owner_node_id": "node-1", "object_type": "vm", "name": None,
+                "platform": "pve-qemu", "configured_state": "defined",
+                "runtime_state": "unknown", "observation_mode": "live",
+                "artifact_refs": [], "ledger_event_refs": [],
+                "basis": ["PVE API"], "confidence": "high",
             }],
             "vm_disk_map": [{
                 "cluster_scope_id": "cluster-1", "workload_id": "vm-1",
                 "object_type": "vm", "vm_disk_mapping_id": "vdm-1",
-                "storage_id": "storage-1",
+                "device_slot": None, "storage_id": "storage-1",
+                "configured_volume_ref": None,
                 "terminal_layer_node_id": "layer-vm",
-                "layer_edge_refs": [],
-                "image_candidate_refs": [],
-                "observation_mode": "inferred", "basis": ["VM config"], "confidence": "medium",
+                "layer_edge_refs": [], "image_candidate_refs": [],
+                "disk_role": "unknown", "observation_mode": "inferred",
+                "artifact_refs": [], "ledger_event_refs": [],
+                "basis": ["VM config"], "confidence": "medium",
             }],
             "snapshot_map": [],
             "quorum_findings": [],
@@ -1303,6 +1572,10 @@ def minimal_case() -> tuple[dict[str, Any], dict[str, Any]]:
                 }],
                 "basis": ["planner completed"],
                 "confidence": "high",
+                "connection_ids": [],
+                "artifact_refs": [],
+                "finding_refs": [],
+                "ledger_event_refs": [],
                 "targeted_collection_request": None,
             }],
             "effective_limits": {
@@ -1327,9 +1600,7 @@ def minimal_case() -> tuple[dict[str, Any], dict[str, Any]]:
 
 
 def minimal_live_collection_case() -> tuple[dict[str, Any], dict[str, Any]]:
-    """A case with live-response targeted collection for testing."""
     request, response = minimal_case()
-    # Switch the cross_domain candidate to live-response with targeted collection
     request["request"]["context"]["route_record"]["route_plan"] = [
         {"route_step_id": "step-current", "skill": "cluster-virtualization-forensics", "status": "running"},
     ]
@@ -1346,6 +1617,10 @@ def minimal_live_collection_case() -> tuple[dict[str, Any], dict[str, Any]]:
         }],
         "basis": ["live collection needed"],
         "confidence": "high",
+        "connection_ids": ["conn-1"],
+        "artifact_refs": [],
+        "finding_refs": [],
+        "ledger_event_refs": [],
         "targeted_collection_request": {
             "actions": [{
                 "action_id": "copy-1",
@@ -1377,58 +1652,74 @@ def run_self_tests() -> list[str]:
     if validate_semantics(request, response):
         failures.append("valid semantic case was rejected")
 
-    # Also test the live collection variant
     lc_request, lc_response = minimal_live_collection_case()
     if validate_semantics(lc_request, lc_response):
         failures.append("valid live collection case was rejected")
 
-    mutations: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
+    # Multi-endpoint same cluster test
+    multi_ep_req, multi_ep_resp = minimal_case()
+    multi_ep_req["request"]["payload"]["cluster_scope"]["allowed_cluster_targets"].append({
+        "cluster_scope_id": "cluster-1", "connection_id": "conn-1",
+        "target_ref": "pve-cluster-1", "virtualization_platform": "proxmox-ve",
+        "endpoint_role": "ssh",
+    })
+    if validate_semantics(multi_ep_req, multi_ep_resp):
+        failures.append("same cluster with different endpoint_role was rejected")
 
-    # 1. Missing Response top-level field
-    missing_schema = copy.deepcopy((request, response))
-    del missing_schema[1]["schema_version"]
-    mutations.append(("missing Response schema_version", *missing_schema))
+    mutations: list[tuple[str, dict[str, Any], dict[str, Any], list[str]]] = []
 
-    missing_findings = copy.deepcopy((request, response))
-    del missing_findings[1]["findings"]
-    mutations.append(("missing Response findings", *missing_findings))
+    # Missing Response top-level field
+    m = copy.deepcopy((request, response))
+    del m[1]["schema_version"]
+    mutations.append(("missing Response schema_version", *m, ["schema_version"]))
 
-    # 2. Missing payload required field
-    missing_cluster_profiles = copy.deepcopy((request, response))
-    del missing_cluster_profiles[1]["payload"]["cluster_profiles"]
-    mutations.append(("missing payload cluster_profiles", *missing_cluster_profiles))
+    m = copy.deepcopy((request, response))
+    del m[1]["findings"]
+    mutations.append(("missing Response findings", *m, ["findings"]))
 
-    missing_node_map = copy.deepcopy((request, response))
-    del missing_node_map[1]["payload"]["node_map"]
-    mutations.append(("missing payload node_map", *missing_node_map))
+    # Missing payload required field
+    m = copy.deepcopy((request, response))
+    del m[1]["payload"]["cluster_profiles"]
+    mutations.append(("missing payload cluster_profiles", *m, ["cluster_profiles"]))
 
-    missing_storage_map = copy.deepcopy((request, response))
-    del missing_storage_map[1]["payload"]["storage_map"]
-    mutations.append(("missing payload storage_map", *missing_storage_map))
+    m = copy.deepcopy((request, response))
+    del m[1]["payload"]["node_map"]
+    mutations.append(("missing payload node_map", *m, ["node_map"]))
 
-    missing_layer_map = copy.deepcopy((request, response))
-    del missing_layer_map[1]["payload"]["layer_map"]
-    mutations.append(("missing payload layer_map", *missing_layer_map))
+    m = copy.deepcopy((request, response))
+    del m[1]["payload"]["storage_map"]
+    mutations.append(("missing payload storage_map", *m, ["storage_map"]))
 
-    # 3. Missing effective limit
-    missing_limit = copy.deepcopy((request, response))
-    del missing_limit[1]["payload"]["effective_limits"]["max_archive_files"]
-    mutations.append(("missing effective limit max_archive_files", *missing_limit))
+    m = copy.deepcopy((request, response))
+    del m[1]["payload"]["layer_map"]
+    mutations.append(("missing payload layer_map", *m, ["layer_map"]))
 
-    extra_limit = copy.deepcopy((request, response))
-    extra_limit[1]["payload"]["effective_limits"]["unknown_limit"] = {
+    # Missing effective limit
+    m = copy.deepcopy((request, response))
+    del m[1]["payload"]["effective_limits"]["max_archive_files"]
+    mutations.append(("missing effective limit max_archive_files", *m, ["max_archive_files"]))
+
+    m = copy.deepcopy((request, response))
+    m[1]["payload"]["effective_limits"]["unknown_limit"] = {
         "value": 1, "status": "resolved", "basis": ["unknown"],
     }
-    mutations.append(("unknown effective limit", *extra_limit))
+    mutations.append(("unknown effective limit", *m, ["unknown limits"]))
 
-    # 4. Action with forbidden command field
-    bad_cmd = copy.deepcopy((lc_request, lc_response))
-    bad_cmd[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["command"] = "rm -rf /"
-    mutations.append(("Action with command field", *bad_cmd))
+    # Effective limit missing value field
+    m = copy.deepcopy((request, response))
+    m[1]["payload"]["effective_limits"]["max_archive_files"] = {
+        "status": "not-applicable", "basis": ["offline only"],
+    }
+    mutations.append(("effective limit missing value field", *m, ["missing fields"]))
 
-    # 5. targeted_collection_request on wrong skill (executor)
-    wrong_skill_tcr = copy.deepcopy((request, response))
-    wrong_skill_tcr[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"] = {
+    # Action with forbidden command field
+    m = copy.deepcopy((lc_request, lc_response))
+    m[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["command"] = "rm -rf /"
+    mutations.append(("Action with command field", *m, ["forbidden freeform"]))
+
+    # targeted_collection_request on executor skill
+    m = copy.deepcopy((request, response))
+    m[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"] = {
         "actions": [{
             "action_id": "copy-wrong", "action_type": "bounded-config-copy",
             "target_type": "node", "target_ref": "node-1",
@@ -1443,135 +1734,219 @@ def run_self_tests() -> list[str]:
         "max_output_bytes": 1024,
         "reason": "test",
     }
-    # Ensure workload_refs present for validation
-    wrong_skill_tcr[1]["payload"]["cross_domain_candidates"][0]["workload_refs"] = [{
-        "cluster_scope_id": "cluster-1", "workload_id": "vm-1", "object_type": "vm",
-    }]
-    mutations.append(("targeted collection on executor skill", *wrong_skill_tcr))
-    mutations.append(("targeted collection on executor skill", *wrong_skill_tcr))
+    mutations.append(("targeted collection on executor skill", *m, ["non-live-response"]))
 
-    # 6. Orphan cluster_scope target
-    orphan_target = copy.deepcopy((request, response))
-    orphan_target[0]["request"]["payload"]["cluster_scope"]["allowed_node_targets"].append(
+    # Orphan cluster_scope target
+    m = copy.deepcopy((request, response))
+    m[0]["request"]["payload"]["cluster_scope"]["allowed_node_targets"].append(
         {"cluster_scope_id": "nonexistent-cluster", "node_id": "orphan-node"}
     )
-    mutations.append(("orphan node target references nonexistent cluster", *orphan_target))
+    mutations.append(("orphan node target references nonexistent cluster", *m, ["non-existent cluster_scope_id"]))
 
-    # 7. Duplicate scoped ID in node_map
-    dup_node = copy.deepcopy((request, response))
-    dup_node[1]["payload"]["node_map"].append({
-        "cluster_scope_id": "cluster-1", "node_id": "node-1",
-        "hostname": "duplicate", "observation_mode": "live",
-        "basis": ["dup"], "confidence": "high",
-    })
-    mutations.append(("duplicate node_map entry", *dup_node))
+    # Duplicate scoped ID in node_map
+    m = copy.deepcopy((request, response))
+    m[1]["payload"]["node_map"].append(copy.deepcopy(m[1]["payload"]["node_map"][0]))
+    mutations.append(("duplicate node_map entry", *m, ["duplicate node_map"]))
 
-    # 8. vm_disk_map references non-existent storage_map
-    bad_storage_ref = copy.deepcopy((request, response))
-    bad_storage_ref[1]["payload"]["vm_disk_map"][0]["storage_id"] = "storage-nonexistent"
-    mutations.append(("vm_disk_map storage not in storage_map", *bad_storage_ref))
+    # vm_disk_map references non-existent storage_map
+    m = copy.deepcopy((request, response))
+    m[1]["payload"]["vm_disk_map"][0]["storage_id"] = "storage-nonexistent"
+    mutations.append(("vm_disk_map storage not in storage_map", *m, ["storage_map"]))
 
-    # 9. Relative path bypass
-    rel_bypass = copy.deepcopy((lc_request, lc_response))
-    rel_bypass[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["source_path"] = "etc/pve/storage.cfg"
-    mutations.append(("relative path bypasses absolute root", *rel_bypass))
+    # Relative path bypass
+    m = copy.deepcopy((lc_request, lc_response))
+    m[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["source_path"] = "etc/pve/storage.cfg"
+    mutations.append(("relative path bypasses absolute root", *m, ["outside approved path scope"]))
 
-    # 10. Action output sum exceeds request total
-    oversum = copy.deepcopy((lc_request, lc_response))
-    oversum[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["max_output_bytes"] = 2048
-    oversum[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["max_output_bytes"] = 1024
-    mutations.append(("action output sum exceeds request limit", *oversum))
+    # Action output sum exceeds request total
+    m = copy.deepcopy((lc_request, lc_response))
+    m[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["max_output_bytes"] = 2048
+    m[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["max_output_bytes"] = 1024
+    mutations.append(("action output sum exceeds request limit", *m, ["action output sum"]))
 
-    # 11. Bounded config exceeds max_config_bytes
-    over_config = copy.deepcopy((lc_request, lc_response))
-    over_config[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["max_output_bytes"] = 8192
-    over_config[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["max_output_bytes"] = 8192
-    over_config[1]["payload"]["effective_limits"]["max_output_bytes"]["value"] = 16384
-    mutations.append(("bounded config exceeds max_config_bytes", *over_config))
+    # Bounded config exceeds max_config_bytes
+    m = copy.deepcopy((lc_request, lc_response))
+    m[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["max_output_bytes"] = 8192
+    m[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["max_output_bytes"] = 8192
+    m[1]["payload"]["effective_limits"]["max_output_bytes"]["value"] = 16384
+    mutations.append(("bounded config exceeds max_config_bytes", *m, ["max_config_bytes"]))
 
-    # 12. Bounded log exceeds max_log_bytes
-    over_log = copy.deepcopy((lc_request, lc_response))
-    over_log[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["action_type"] = "bounded-log-collection"
-    over_log[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["since"] = "2026-01-01T00:00:00Z"
-    over_log[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["until"] = "2026-01-02T00:00:00Z"
-    over_log[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["max_output_bytes"] = 16384
-    over_log[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["paths"][0]["path_role"] = "remote-log-source"
-    over_log[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["max_output_bytes"] = 16384
-    over_log[1]["payload"]["effective_limits"]["max_output_bytes"]["value"] = 32768
-    mutations.append(("bounded log exceeds max_log_bytes", *over_log))
+    # Bounded log exceeds max_log_bytes
+    m = copy.deepcopy((lc_request, lc_response))
+    m[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["action_type"] = "bounded-log-collection"
+    m[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["since"] = "2026-01-01T00:00:00Z"
+    m[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["until"] = "2026-01-02T00:00:00Z"
+    m[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["max_output_bytes"] = 16384
+    m[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["paths"][0]["path_role"] = "remote-log-source"
+    m[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["max_output_bytes"] = 16384
+    m[1]["payload"]["effective_limits"]["max_output_bytes"]["value"] = 32768
+    mutations.append(("bounded log exceeds max_log_bytes", *m, ["max_log_bytes"]))
 
-    # 13. Response session/connection mismatch
-    session_mismatch = copy.deepcopy((request, response))
-    session_mismatch[1]["payload"]["environment"]["session_id"] = "session-other"
-    mutations.append(("Response session_id mismatch", *session_mismatch))
+    # Response session_id mismatch
+    m = copy.deepcopy((request, response))
+    m[1]["payload"]["environment"]["session_id"] = "session-other"
+    mutations.append(("Response session_id mismatch", *m, ["session_id differs"]))
 
-    conn_mismatch = copy.deepcopy((request, response))
-    conn_mismatch[1]["payload"]["environment"]["connection_ids"] = ["conn-unauthorized"]
-    mutations.append(("Response unauthorized connection_id", *conn_mismatch))
+    # Response unauthorized connection_id
+    m = copy.deepcopy((request, response))
+    m[1]["payload"]["environment"]["connection_ids"] = ["conn-unauthorized"]
+    mutations.append(("Response unauthorized connection_id", *m, ["unauthorized connection"]))
 
-    # Additional: offline Response with session
-    offline_session = copy.deepcopy((request, response))
-    offline_session[0]["request"]["payload"]["access_mode"] = "offline-node-image"
-    offline_session[0]["request"]["payload"]["environment"]["session_id"] = None
-    offline_session[0]["request"]["payload"]["environment"]["connection_ids"] = []
-    offline_session[0]["request"]["payload"]["environment"]["root_artifact_refs"] = ["artifact-test-001"]
-    offline_session[0]["request"]["context"]["route_record"]["evidence_scope"] = "test offline"
-    offline_session[0]["request"]["payload"]["cluster_scope"]["allowed_cluster_targets"][0]["connection_id"] = None
-    offline_session[0]["request"]["payload"]["cluster_scope"]["allowed_paths"] = []
-    offline_session[1]["payload"]["cross_domain_candidates"] = []
-    offline_session[1]["payload"]["environment"]["session_id"] = "should-be-null"
-    mutations.append(("offline Response with session_id", *offline_session))
+    # Response access_mode inconsistent
+    m = copy.deepcopy((request, response))
+    m[1]["payload"]["environment"]["access_mode"] = "rebuilt-cluster"
+    mutations.append(("Response access_mode inconsistent", *m, ["access_mode differs"]))
 
-    # Additional: Path traversal escape
-    path_escape = copy.deepcopy((lc_request, lc_response))
-    path_escape[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["source_path"] = "/etc/pve/../shadow"
-    mutations.append(("path traversal via ..", *path_escape))
+    # live Response session_id=null
+    m = copy.deepcopy((request, response))
+    m[1]["payload"]["environment"]["session_id"] = None
+    mutations.append(("live Response session_id null", *m, ["session_id must be non-null"]))
 
-    # Additional: Windows drive mismatch
-    drive_mismatch = copy.deepcopy((lc_request, lc_response))
-    drive_mismatch[0]["request"]["payload"]["cluster_scope"]["allowed_paths"][0]["path"] = "C:\\PVE"
-    drive_mismatch[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["source_path"] = "D:\\PVE\\storage.cfg"
-    drive_mismatch[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["paths"][0]["path"] = "D:\\PVE\\storage.cfg"
-    mutations.append(("Windows drive mismatch", *drive_mismatch))
+    # live Response connection_ids empty
+    m = copy.deepcopy((request, response))
+    m[1]["payload"]["environment"]["connection_ids"] = []
+    mutations.append(("live Response connection_ids empty", *m, ["connection_ids must be non-empty"]))
 
-    # Additional: cluster_profile references nonexistent Request cluster
-    bad_profile = copy.deepcopy((request, response))
-    bad_profile[1]["payload"]["cluster_profiles"].append({
+    # Offline Response with session
+    m = copy.deepcopy((request, response))
+    m[0]["request"]["payload"]["access_mode"] = "offline-node-image"
+    m[0]["request"]["payload"]["environment"]["session_id"] = None
+    m[0]["request"]["payload"]["environment"]["connection_ids"] = []
+    m[0]["request"]["payload"]["environment"]["root_artifact_refs"] = ["artifact-test-001"]
+    m[0]["request"]["context"]["route_record"]["evidence_scope"] = "test offline"
+    m[0]["request"]["payload"]["cluster_scope"]["allowed_cluster_targets"][0]["connection_id"] = None
+    m[0]["request"]["payload"]["cluster_scope"]["allowed_paths"] = []
+    m[1]["payload"]["cross_domain_candidates"] = []
+    m[1]["payload"]["environment"]["session_id"] = "should-be-null"
+    m[1]["payload"]["environment"]["connection_ids"] = ["stale"]
+    m[1]["payload"]["environment"]["access_mode"] = "offline-node-image"
+    mutations.append(("offline Response with session_id", *m, ["session_id must be null"]))
+
+    # Path traversal escape
+    m = copy.deepcopy((lc_request, lc_response))
+    m[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["source_path"] = "/etc/pve/../shadow"
+    mutations.append(("path traversal via ..", *m, ["outside approved path scope"]))
+
+    # Windows drive mismatch
+    m = copy.deepcopy((lc_request, lc_response))
+    m[0]["request"]["payload"]["cluster_scope"]["allowed_paths"][0]["path"] = "C:\\PVE"
+    m[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["source_path"] = "D:\\PVE\\storage.cfg"
+    m[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["paths"][0]["path"] = "D:\\PVE\\storage.cfg"
+    mutations.append(("Windows drive mismatch", *m, ["outside approved path scope"]))
+
+    # Windows forward slash accepted for same drive
+    m = copy.deepcopy((lc_request, lc_response))
+    m[0]["request"]["payload"]["cluster_scope"]["allowed_paths"][0]["path"] = "C:/PVE"
+    m[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["source_path"] = "C:\\PVE\\storage.cfg"
+    m[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["paths"][0]["path"] = "C:\\PVE\\storage.cfg"
+    if validate_semantics(m[0], m[1]):
+        failures.append("Windows forward/backslash same drive was rejected")
+
+    # cluster_profile references nonexistent Request cluster
+    m = copy.deepcopy((request, response))
+    m[1]["payload"]["cluster_profiles"].append({
         "cluster_scope_id": "cluster-ghost",
         "virtualization_platform": "unknown",
         "observation_mode": "inferred",
         "basis": ["ghost"], "confidence": "low",
     })
-    mutations.append(("cluster_profile references nonexistent cluster", *bad_profile))
+    mutations.append(("cluster_profile references nonexistent cluster", *m, ["non-existent Request cluster_scope_id"]))
 
-    # Additional: vm_disk_map edge refs not connected to terminal
-    bad_edge_ref = copy.deepcopy((request, response))
-    bad_edge_ref[1]["payload"]["layer_map"]["edges"] = [{
+    # vm_disk_map edge refs not connected to terminal
+    m = copy.deepcopy((request, response))
+    m[1]["payload"]["layer_map"]["edges"] = [{
         "cluster_scope_id": "cluster-1", "layer_edge_id": "edge-unrelated",
         "from_layer_node_id": "layer-disk-1", "to_layer_node_id": "layer-disk-1",
-        "relation": "conflicts-with",
+        "relation": "conflicts-with", "observation_mode": "inferred",
+        "artifact_refs": [], "ledger_event_refs": [], "basis": ["test"], "confidence": "low",
     }]
-    bad_edge_ref[1]["payload"]["layer_map"]["nodes"][0]["entity_ref"] = "some-entity"
-    bad_edge_ref[1]["payload"]["layer_map"]["nodes"].append({
+    m[1]["payload"]["layer_map"]["nodes"][0]["entity_ref"] = "some-entity"
+    m[1]["payload"]["layer_map"]["nodes"].append({
         "cluster_scope_id": "cluster-1", "layer_node_id": "layer-disk-1-copy",
-        "node_type": "physical-disk", "owner_node_id": None, "entity_ref": "some-entity",
+        "node_type": "physical-disk", "entity_ref": "some-entity",
+        "owner_node_id": None, "name": None, "location": None,
+        "size_bytes": None, "availability": "present",
+        "identity_status": "unverified", "observation_mode": "inferred",
+        "observed_at": None, "artifact_refs": [], "ledger_event_refs": [],
+        "basis": ["test"], "confidence": "low",
     })
-    bad_edge_ref[1]["payload"]["layer_map"]["edges"][0]["to_layer_node_id"] = "layer-disk-1-copy"
-    bad_edge_ref[1]["payload"]["vm_disk_map"][0]["layer_edge_refs"] = ["edge-unrelated"]
-    mutations.append(("vm_disk_map edge refs not connected to terminal", *bad_edge_ref))
+    m[1]["payload"]["layer_map"]["edges"][0]["to_layer_node_id"] = "layer-disk-1-copy"
+    m[1]["payload"]["vm_disk_map"][0]["layer_edge_refs"] = ["edge-unrelated"]
+    mutations.append(("vm_disk_map edge refs not connected to terminal", *m, ["layer_edge_refs do not connect"]))
 
-    # Additional: response plan_id conflict
-    plan_conflict = copy.deepcopy((request, response))
-    plan_conflict[1]["payload"]["environment"]["plan_id"] = "plan-conflict"
-    mutations.append(("Response plan_id conflicts with Request", *plan_conflict))
+    # Response plan_id conflict
+    m = copy.deepcopy((request, response))
+    m[1]["payload"]["environment"]["plan_id"] = "plan-conflict"
+    mutations.append(("Response plan_id conflicts with Request", *m, ["plan_id conflicts"]))
 
-    for name, mutated_request, mutated_response in mutations:
+    # ghost Image Candidate Cluster
+    m = copy.deepcopy((request, response))
+    m[1]["payload"]["image_candidates"] = [{
+        "cluster_scope_id": "cluster-ghost", "candidate_id": "img-ghost",
+        "object_type": "full-image", "location_type": "filesystem-path",
+        "location": "/tmp/ghost", "content_availability": "missing",
+        "identity_status": "unverified", "size_bytes": None, "format": "unknown",
+        "backing_refs": [], "layer_node_refs": [], "source_artifact_id": None,
+        "analysis_readiness": "not-ready", "analysis_readiness_basis": ["ghost"],
+        "large_artifact_status": "unknown", "artifact_refs": [], "ledger_event_refs": [],
+        "basis": ["ghost"], "confidence": "low",
+    }]
+    mutations.append(("ghost Image Candidate Cluster", *m, ["non-existent cluster_profile"]))
+
+    # duplicate Layer Node
+    m = copy.deepcopy((request, response))
+    m[1]["payload"]["layer_map"]["nodes"].append(copy.deepcopy(m[1]["payload"]["layer_map"]["nodes"][0]))
+    mutations.append(("duplicate Layer Node", *m, ["duplicate layer_node"]))
+
+    # unknown Handoff Skill
+    m = copy.deepcopy((request, response))
+    m[1]["payload"]["cross_domain_candidates"][0]["skill"] = "nonexistent-skill"
+    mutations.append(("unknown Handoff Skill", *m, ["not in frozen enum"]))
+
+    # negative Finding no evidence
+    m = copy.deepcopy((request, response))
+    m[1]["findings"] = [{"category": "negative", "evidence_refs": []}]
+    mutations.append(("negative Finding no evidence", *m, ["non-empty evidence_refs"]))
+
+    # negative Finding references nonexistent Ledger Event
+    m = copy.deepcopy((request, response))
+    m[1]["findings"] = [{"category": "negative", "evidence_refs": ["led-ghost"]}]
+    m[1]["ledger_events"] = []
+    mutations.append(("negative Finding ghost evidence", *m, ["does not reference a Ledger Event"]))
+
+    # incomplete cluster_profile
+    m = copy.deepcopy((request, response))
+    m[1]["payload"]["cluster_profiles"][0] = {
+        "cluster_scope_id": "cluster-1",
+        "virtualization_platform": "proxmox-ve",
+    }
+    mutations.append(("incomplete cluster_profile", *m, ["missing required fields"]))
+
+    # incomplete node_map
+    m = copy.deepcopy((request, response))
+    m[1]["payload"]["node_map"][0] = {"cluster_scope_id": "cluster-1", "node_id": "node-1"}
+    mutations.append(("incomplete node_map record", *m, ["missing required fields"]))
+
+    # incomplete vm_map
+    m = copy.deepcopy((request, response))
+    m[1]["payload"]["vm_map"][0] = {"cluster_scope_id": "cluster-1", "workload_id": "vm-1"}
+    mutations.append(("incomplete vm_map record", *m, ["missing required fields"]))
+
+    # incomplete cross_domain_candidate
+    m = copy.deepcopy((request, response))
+    m[1]["payload"]["cross_domain_candidates"][0] = {"candidate_id": "cdc-1"}
+    mutations.append(("incomplete cross_domain_candidate", *m, ["missing required fields"]))
+
+    for name, mutated_request, mutated_response, expected_substrings in mutations:
         result = validate_semantics(mutated_request, mutated_response)
         if not result:
             failures.append(f"invalid semantic case accepted: {name}")
         else:
-            # Verify the expected error type is present
-            pass
+            all_errors = " ".join(result)
+            if not any(sub in all_errors for sub in expected_substrings):
+                failures.append(
+                    f"mutation '{name}' produced unexpected errors: {result}"
+                )
     return failures
 
 
