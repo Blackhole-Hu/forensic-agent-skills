@@ -23,7 +23,7 @@ description: Linux 服务器系统层取证。分析账号、登录、SSH、sudo
 - 需要 Web 源码和访问日志的深度攻击分析（交给 `webapp-server-forensics`）
 - 需要数据库业务数据和事务日志分析（交给 `database-server-forensics`）
 - 需要 Docker image、volume、layer 的深度分析（交给 `docker-container-forensics`）
-- 需要恶意二进制逆向和执行（Phase 3 `malware-forensics`）
+- 需要恶意二进制逆向、动态分析或执行；本 Skill 只保留静态 Artifact 和证据，不执行样本
 - 需要 Windows Server 分析
 - 需要服务器重建（交给 `server-rebuild-planner` / `server-rebuild-executor`）
 - 需要新建远程连接或绕过 `live_response_scope`
@@ -31,7 +31,7 @@ description: Linux 服务器系统层取证。分析账号、登录、SSH、sudo
 
 ## Request Contract
 
-遵循 templates/request-envelope.schema.json。`request.payload` 至少包含：
+遵循 templates/request-envelope.schema.json。以下代码块仅展示 `request.payload` fragment，不是完整 Request Envelope：
 
 ~~~yaml
 environment:
@@ -142,6 +142,8 @@ payload:
 ~~~
 
 targeted_collection_request 规则：
+
+`cross_domain_candidates.skill` 只允许填写当前已实现的 `webapp-server-forensics`、`database-server-forensics`、`docker-container-forensics`、`timeline-reconstruction` 或 `remote-server-live-response`。可疑 ELF、脚本和持久化载荷保存在本 Skill 的 persistence、package、file 或 suspicious Finding/candidate 中，并记录需要后续专项分析；不得为其创建未实现 Skill 的 Route Step、Handoff 或 cross-domain target。
 
 - 不需要补充采集时为 `null`
 - 非 null 时四个字段必须存在
@@ -445,7 +447,7 @@ Web、Database、Docker 的深入内容只建立 cross-domain candidate。
 | Database | `database-server-forensics` |
 | Docker/container | `docker-container-forensics` |
 | 多源时间事件 | `timeline-reconstruction` |
-| 可疑 ELF、脚本或持久化载荷 | 记录 pending `malware-forensics` candidate，Phase 3 Skill 可用后交接，本 Skill 不执行样本 |
+| 可疑 ELF、脚本或持久化载荷 | 保留 Artifact、Finding、Ledger 和静态 candidate，记录后续专项分析 limitation；不执行样本，不生成跨域目标 |
 | 需要额外远程采集 | `remote-server-live-response` targeted collection handoff |
 
 允许并行 handoff，使用 `dependency_step_ids` 和 `parallel_group`。
@@ -550,7 +552,7 @@ Web、Database、Docker 的深入内容只建立 cross-domain candidate。
 - [ ] 时间事件记录 timezone evidence 和 confidence
 - [ ] 不无依据假设 UTC 或本地时间
 - [ ] timeline_candidates 由 timeline-reconstruction 统一生成正式 Timeline Event
-- [ ] cross_domain_candidates 正确映射到 webapp/database/docker/malware/timeline
+- [ ] cross_domain_candidates 只映射到当前已实现的 webapp/database/docker/timeline/live-response；可疑载荷证据保留在本 Skill
 - [ ] command event 使用 `output_artifact_refs`，artifact event 使用 `artifact_refs`
 - [ ] failure classification 覆盖 11 种 error_class
 - [ ] execution_gate 仅在超出 scope 时 required

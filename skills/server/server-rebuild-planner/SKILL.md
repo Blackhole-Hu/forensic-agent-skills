@@ -32,6 +32,7 @@ server-rebuild-planner 是服务器重建的规划层。接收 `server-forensics
 遵循 `templates/request-envelope.schema.json`。
 
 ```yaml
+schema_version: "1.0"
 request:
   material_info:
     artifact_refs: array

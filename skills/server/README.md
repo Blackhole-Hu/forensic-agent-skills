@@ -1,6 +1,6 @@
 # Server Forensics Skills
 
-Phase 2 server forensic chain under active migration.
+Phase 2 server forensic chain completed for the current server scope.
 
 See `docs/data-contracts.md` for unified request/response contracts and `templates/` for JSON schemas.
 
@@ -17,7 +17,9 @@ See `docs/data-contracts.md` for unified request/response contracts and `templat
 | `database-server-forensics/` | Database forensics (MySQL/Redis/PostgreSQL/MongoDB) | Completed |
 | `docker-container-forensics/` | Docker container forensics | Completed |
 | `cluster-virtualization-forensics/` | PVE/Ceph/virtualization topology and storage mapping | Completed |
-| `timeline-reconstruction/` | Multi-source event timeline reconstruction | Pending (in `skills/timeline/`) |
+| `timeline-reconstruction/` | Phase 2 server-scope event timeline reconstruction | Completed (in `skills/timeline/`) |
+
+The completed Timeline scope is limited to the server sources documented in `skills/timeline/README.md`; PCAP and browser-history sources are not implemented.
 
 ## Chain
 

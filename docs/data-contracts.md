@@ -13,6 +13,7 @@
 所有 Phase 2 skills 接收统一的请求结构。Schema: `templates/request-envelope.schema.json`
 
 ```yaml
+schema_version: "1.0"
 request:
   material_info:
     artifact_refs: array       # artifact-<uuid> 引用列表
@@ -46,6 +47,7 @@ request:
 所有 Phase 2 skills 输出统一的响应结构。Schema: `templates/response-envelope.schema.json`
 
 ```yaml
+schema_version: "1.0"
 investigation_summary: object  # 人工可读摘要
 route_record: object           # 路由记录（包含 route_plan 和 handoffs）
 findings: array                # 发现列表
@@ -283,6 +285,8 @@ can_continue_on_failure: boolean
 ---
 
 ## 8. 各专项 Skill 的 payload 字段
+
+Phase 2 的 `cross_domain_candidates.skill` 只能引用当前仓库已实现且可执行的 Skill。需要后续专项分析的可疑脚本、WebShell、ELF、二进制或载荷必须保留为当前领域 Skill 的 Artifact、Finding、candidate、suspicious artifact、persistence evidence 或 blocker，并记录 scope limitation；不得创建到未实现 Skill 的 Route Step、Handoff 或可执行 cross-domain target，也不得声称专项分析已经完成。
 
 ### 8.1 server-forensics-router
 

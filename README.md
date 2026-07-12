@@ -55,8 +55,8 @@ Migrating from `E:\CompetitionTools\skills` (41 skills) in four phases. See [`do
 
 | Phase | Scope | Status |
 |-------|-------|--------|
-| **Phase 1** | Core control loop (9 modules) | Drafts created; under review |
-| **Phase 2** | Server forensic chain (10 modules) | Pending |
+| **Phase 1** | Core control loop (9 modules) | Completed |
+| **Phase 2** | Server forensic chain (10 modules) | Completed |
 | **Phase 3** | Uncommon media & recovery (5 modules) | Pending |
 | **Phase 4** | Competition-specific output (2 modules) | Pending |
 
@@ -86,8 +86,7 @@ forensic-agent-skills/
 - [x] Repository bootstrapped
 - [x] Agent configuration (`AGENTS.md`, `docs/agents/`)
 - [x] Migration inventory (`docs/migration/old-skills-inventory.md`)
-- [x] Phase 1 — Core control loop drafts
-- [ ] Phase 1 — Human review and refinement
-- [ ] Phase 2 — Server forensic chain
+- [x] Phase 1 — Core control loop and review
+- [x] Phase 2 — Server forensic chain
 - [ ] Phase 3 — Uncommon media & recovery
 - [ ] Phase 4 — Competition-specific output
