@@ -1118,17 +1118,636 @@ request.payload.docker_scope:
 
 ### 8.9 cluster-virtualization-forensics
 
+#### Request Contract
+
+<!-- cluster-request-contract:start -->
+```yaml
+schema_version: "1.0"
+request:
+  material_info:
+    artifact_refs:
+      - "artifact-<uuid>"
+    material_type: string
+    triage_notes:
+      - string
+    size_summary:
+      total_bytes: integer|null
+      file_count: integer|null
+      largest_file_bytes: integer|null
+  objective: string|null
+  objective_status: explicit|inferred|unknown
+  context:
+    route_record:
+      schema_version: "1.0"
+      route_id: "route-<uuid>"
+      triggered_skill: string
+      route_basis:
+        - string
+      mode_decision: string|null
+      route_status: active|completed|blocked|failed|cancelled
+      route_plan:
+        - route_step_id: "step-<uuid>"
+          skill: string
+          dependency_step_ids:
+            - "step-<uuid>"
+          parallel_group: string|null
+          status: pending|running|completed|blocked|failed|skipped
+      handoffs:
+        - handoff_id: "hof-<uuid>"
+          route_id: "route-<uuid>"
+          from_step_id: "step-<uuid>"
+          to_step_id: "step-<uuid>"
+          from: string
+          to: string
+          reason: string
+          artifact_refs:
+            - "artifact-<uuid>"
+          finding_refs:
+            - "finding-<uuid>"
+          visited_skills:
+            - string
+          hop_count: integer
+          status: pending|accepted|completed|rejected|blocked
+          priority: critical|high|normal|low
+          reentry_reason: string|null
+          new_evidence_refs:
+            - "led-<uuid>"
+      evidence_scope: string
+      risk_level: low|medium|high
+      next_action: string|null
+      execution_gate:
+        required: boolean
+        reason: string|null
+        policy_ref: string|null
+      routing_policy:
+        max_hops: integer
+    current_step_id: "step-<uuid>"
+    artifact_refs:
+      - "artifact-<uuid>"
+    ledger_event_refs:
+      - "led-<uuid>"
+    finding_refs:
+      - "finding-<uuid>"
+    upstream_environment:
+      plan_id: string|null
+      session_id: string|null
+      runtime_instance_ref: string|null
+    upstream_time_observation:
+      remote_timestamp: string|null
+      remote_timezone: string|null
+      timezone_offset: string|null
+      estimated_clock_skew_seconds: integer|null
+  payload:
+    environment:
+      origin_type: direct-remote|rebuilt-runtime|offline-artifact
+      plan_id: string|null
+      session_id: string|null
+      connection_ids:
+        - string
+      root_artifact_refs:
+        - "artifact-<uuid>"
+      collection_artifact_refs:
+        - "artifact-<uuid>"
+    access_mode: live-cluster|rebuilt-cluster|offline-node-image|disk-set|artifact-package
+    cluster_scope:
+      analysis_scope_id: string
+      platform_hints:
+        - proxmox-ve|vmware-vsphere|generic-linux-virtualization|unknown
+      targeted_questions:
+        - string
+      allowed_cluster_targets:
+        - cluster_scope_id: string
+          connection_id: string|null
+          target_ref: string
+          virtualization_platform: proxmox-ve|vmware-vsphere|generic-linux-virtualization|unknown
+          endpoint_role: pve-api|ceph-cli|vcenter-api|ssh|service-client|offline-artifact|other
+      allowed_node_targets:
+        - cluster_scope_id: string
+          node_id: string
+      allowed_vm_targets:
+        - cluster_scope_id: string
+          vm_id: string
+      allowed_container_targets:
+        - cluster_scope_id: string
+          container_id: string
+      allowed_storage_targets:
+        - cluster_scope_id: string
+          storage_id: string
+      allowed_disk_targets:
+        - cluster_scope_id: string
+          disk_id: string
+      allowed_paths:
+        - path_scope_id: string
+          cluster_scope_id: string|null
+          owner_node_id: string|null
+          artifact_ref: "artifact-<uuid>|null"
+          path: string
+          recursive: boolean
+          max_depth: integer|null
+      disk_set_members:
+        - cluster_scope_id: string
+          member_id: string
+          artifact_ref: "artifact-<uuid>"
+          expected_role: system-disk|data-disk|raid-member|lvm-pv|zfs-vdev|btrfs-device|ceph-osd|unknown
+          required: boolean
+      stages:
+        include_platform_node_mapping: boolean
+        include_quorum_analysis: boolean
+        include_disk_mapping: boolean
+        include_storage_reconstruction: boolean
+        include_distributed_storage_analysis: boolean
+        include_vm_mapping: boolean
+        include_snapshot_backing_analysis: boolean
+        include_health_conflict_analysis: boolean
+        include_timeline_candidates: boolean
+        include_cross_domain_validation: boolean
+      live_collection_limits:
+        max_actions: integer|null
+        max_output_bytes: integer|null
+        max_objects_per_action: integer|null
+        max_log_bytes: integer|null
+        max_config_bytes: integer|null
+        max_session_seconds: integer|null
+      archive_limits:
+        max_archive_files: integer|null
+        max_archive_expanded_bytes: integer|null
+      disk_limits:
+        max_disk_members: integer|null
+        max_bytes_sampled_per_disk: integer|null
+        max_image_candidates: integer|null
+      traversal_limits:
+        max_depth: integer|null
+        max_objects: integer|null
+        max_paths: integer|null
+```
+<!-- cluster-request-contract:end -->
+
+#### Response Payload
+
+<!-- cluster-payload-contract:start -->
 ```yaml
 payload:
-  layer_hint: string|null
-  layer_map: object
-  node_map: object|null
-  disk_map: object|null
-  vm_disk_map: object|null
-  storage_map: object|null
-  real_image_found: boolean
-  placeholder_only: boolean
+  environment:
+    origin_type: direct-remote|rebuilt-runtime|offline-artifact
+    plan_id: string|null
+    session_id: string|null
+    connection_ids:
+      - string
+    root_artifact_refs:
+      - "artifact-<uuid>"
+    collection_artifact_refs:
+      - "artifact-<uuid>"
+    artifact_refs:
+      - "artifact-<uuid>"
+    ledger_event_refs:
+      - "led-<uuid>"
+    basis:
+      - string
+    confidence: high|medium|low
+  access_mode: live-cluster|rebuilt-cluster|offline-node-image|disk-set|artifact-package
+  cluster_profiles:
+    - cluster_scope_id: string
+      cluster_id: string|null
+      cluster_name: string|null
+      virtualization_platform: proxmox-ve|vmware-vsphere|generic-linux-virtualization|unknown
+      platform_version: string|null
+      control_plane_components:
+        - component_id: string
+          component_type: pmxcfs|corosync|pve-cluster|vcenter|vsphere-ha|libvirt|other
+          component_version: string|null
+          status: present|missing|partial|unknown
+      distributed_storage_components:
+        - component_id: string
+          component_type: ceph|vsan|other
+          component_version: string|null
+          status: present|degraded|missing|partial|unknown
+      configured_node_count: integer|null
+      observed_node_count: integer|null
+      observation_mode: live|configured|metadata-snapshot|inferred
+      observed_at: ISO8601|null
+      artifact_refs:
+        - "artifact-<uuid>"
+      ledger_event_refs:
+        - "led-<uuid>"
+      basis:
+        - string
+      confidence: high|medium|low
+  node_map:
+    - cluster_scope_id: string
+      node_id: string
+      hostname: string|null
+      platform_node_ref: string|null
+      roles:
+        - pve-node|vsphere-host|corosync-member|ceph-mon|ceph-mgr|ceph-osd-host|storage-node|compute-node|other
+      membership_status: member|configured-member|missing|removed|unknown
+      management_addresses:
+        - string
+      observation_mode: live|configured|metadata-snapshot|inferred
+      observed_at: ISO8601|null
+      artifact_refs:
+        - "artifact-<uuid>"
+      ledger_event_refs:
+        - "led-<uuid>"
+      basis:
+        - string
+      confidence: high|medium|low
+  disk_map:
+    - cluster_scope_id: string
+      disk_id: string
+      owner_node_id: string|null
+      layer_node_id: string
+      device_path: string|null
+      stable_identifier: string|null
+      size_bytes: integer|null
+      sector_size: integer|null
+      member_role: system-disk|data-disk|raid-member|lvm-pv|zfs-vdev|btrfs-device|ceph-osd|unknown
+      availability: present|missing|partial|unreadable|metadata-only
+      observation_mode: live|configured|metadata-snapshot|inferred
+      artifact_refs:
+        - "artifact-<uuid>"
+      ledger_event_refs:
+        - "led-<uuid>"
+      basis:
+        - string
+      confidence: high|medium|low
+  storage_map:
+    - cluster_scope_id: string
+      storage_id: string
+      owner_node_ids:
+        - string
+      storage_type: directory|nfs|cifs|iscsi|mdraid|lvm|lvm-thin|zfs|btrfs|ceph-rbd|cephfs|vsan|other|unknown
+      configured_name: string|null
+      configured_path_or_target: string|null
+      shared: boolean|null
+      content_roles:
+        - vm-disk|container-rootfs|template|iso|backup|snippet|other
+      backing_layer_node_refs:
+        - string
+      health_status: healthy|degraded|failed|unknown|not-observed
+      observation_mode: live|configured|metadata-snapshot|inferred
+      artifact_refs:
+        - "artifact-<uuid>"
+      ledger_event_refs:
+        - "led-<uuid>"
+      basis:
+        - string
+      confidence: high|medium|low
+  layer_map:
+    nodes:
+      - cluster_scope_id: string
+        layer_node_id: string
+        node_type: physical-disk|partition|mdraid-array|lvm-pv|lvm-vg|lvm-lv|lvm-thin-pool|lvm-thin-volume|zfs-vdev|zfs-pool|zfs-dataset|zfs-zvol|btrfs-device|btrfs-filesystem|btrfs-subvolume|ceph-osd|ceph-pool|ceph-rbd|directory-storage|nfs-export|iscsi-target|vsan-object|qcow2-file|raw-file|vmdk-descriptor|vmdk-extent|snapshot-delta|vm-disk|container-rootfs|guest-image-candidate|missing-component|unknown
+        entity_ref: string|null
+        owner_node_id: string|null
+        name: string|null
+        location: string|null
+        size_bytes: integer|null
+        availability: present|missing|partial|unreadable|metadata-only|remote-reference
+        identity_status: verified|correlated|ambiguous|unverified
+        observation_mode: live|configured|metadata-snapshot|inferred
+        observed_at: ISO8601|null
+        artifact_refs:
+          - "artifact-<uuid>"
+        ledger_event_refs:
+          - "led-<uuid>"
+        basis:
+          - string
+        confidence: high|medium|low
+    edges:
+      - cluster_scope_id: string
+        layer_edge_id: string
+        from_layer_node_id: string
+        to_layer_node_id: string
+        relation: contains|partitions-into|member-of|backs|aggregates-into|allocates|hosts|stores|maps-to|configured-as|snapshot-parent-of|backing-file-of|delta-parent-of|symlink-target-of|remote-reference-to|missing-link-to|conflicts-with
+        observation_mode: live|configured|metadata-snapshot|inferred
+        artifact_refs:
+          - "artifact-<uuid>"
+        ledger_event_refs:
+          - "led-<uuid>"
+        basis:
+          - string
+        confidence: high|medium|low
+    gaps:
+      - cluster_scope_id: string
+        gap_id: string
+        expected_from_layer_node_id: string|null
+        expected_to_layer_node_id: string|null
+        missing_layer_type: string
+        reason: member-missing|metadata-missing|content-unavailable|scope-excluded|parse-failure|unknown
+        impact: informational|partial-map|blocks-image-identity|blocks-rebuild
+        artifact_refs:
+          - "artifact-<uuid>"
+        ledger_event_refs:
+          - "led-<uuid>"
+        basis:
+          - string
+        confidence: high|medium|low
+    conflicts:
+      - cluster_scope_id: string
+        conflict_id: string
+        left_ref: string
+        right_ref: string
+        conflict_type: configured-vs-live|identity-mismatch|size-mismatch|membership-mismatch|backing-chain-mismatch|other
+        resolution_status: unresolved|explained|resolved
+        preferred_ref: string|null
+        artifact_refs:
+          - "artifact-<uuid>"
+        ledger_event_refs:
+          - "led-<uuid>"
+        basis:
+          - string
+        confidence: high|medium|low
+  vm_map:
+    - cluster_scope_id: string
+      workload_id: string
+      owner_node_id: string|null
+      object_type: vm|container|vm-template|container-template
+      name: string|null
+      platform: pve-qemu|pve-lxc|vsphere-vm|libvirt-vm|other|unknown
+      configured_state: defined|template|disabled|unknown
+      runtime_state: running|stopped|paused|suspended|unknown|not-observed
+      observation_mode: live|configured|metadata-snapshot|inferred
+      artifact_refs:
+        - "artifact-<uuid>"
+      ledger_event_refs:
+        - "led-<uuid>"
+      basis:
+        - string
+      confidence: high|medium|low
+  vm_disk_map:
+    - cluster_scope_id: string
+      vm_disk_mapping_id: string
+      workload_id: string
+      object_type: vm|container|vm-template|container-template
+      device_slot: string|null
+      storage_id: string|null
+      configured_volume_ref: string|null
+      terminal_layer_node_id: string
+      layer_edge_refs:
+        - string
+      image_candidate_refs:
+        - string
+      disk_role: boot|system|data|efi|tpm|cloud-init|container-rootfs|other|unknown
+      observation_mode: live|configured|metadata-snapshot|inferred
+      artifact_refs:
+        - "artifact-<uuid>"
+      ledger_event_refs:
+        - "led-<uuid>"
+      basis:
+        - string
+      confidence: high|medium|low
+  snapshot_map:
+    - cluster_scope_id: string
+      snapshot_id: string
+      owner_type: vm|container|vm-template|container-template|vm-disk|storage-volume
+      owner_ref: string
+      parent_snapshot_id: string|null
+      snapshot_type: internal|external|storage-native|rbd-snapshot|zfs-snapshot|vmware-delta|pve-snapshot|unknown
+      created_at: ISO8601|null
+      state: configured|present|missing|partial|unknown
+      layer_node_refs:
+        - string
+      backing_edge_refs:
+        - string
+      observation_mode: live|configured|metadata-snapshot|inferred
+      artifact_refs:
+        - "artifact-<uuid>"
+      ledger_event_refs:
+        - "led-<uuid>"
+      basis:
+        - string
+      confidence: high|medium|low
+  quorum_findings:
+    - cluster_scope_id: string
+      quorum_finding_id: string
+      quorum_state: quorate|not-quorate|unknown|not-applicable
+      expected_votes: integer|null
+      observed_votes: integer|null
+      member_node_ids:
+        - string
+      missing_node_ids:
+        - string
+      split_brain_suspected: boolean|null
+      observation_mode: live|configured|metadata-snapshot|inferred
+      artifact_refs:
+        - "artifact-<uuid>"
+      ledger_event_refs:
+        - "led-<uuid>"
+      basis:
+        - string
+      confidence: high|medium|low
+  storage_health_findings:
+    - cluster_scope_id: string
+      health_finding_id: string
+      target_type: mdraid|lvm|zfs|btrfs|ceph|vsan|shared-storage|other
+      target_ref: string
+      health_state: healthy|degraded|failed|incomplete|unknown
+      missing_component_refs:
+        - string
+      indicators:
+        - string
+      observation_mode: live|configured|metadata-snapshot|inferred
+      artifact_refs:
+        - "artifact-<uuid>"
+      ledger_event_refs:
+        - "led-<uuid>"
+      basis:
+        - string
+      confidence: high|medium|low
+  image_candidates:
+    - cluster_scope_id: string
+      candidate_id: string
+      object_type: full-image|descriptor|backing-file|snapshot-delta|symlink|placeholder|metadata-only-reference|remote-logical-reference|missing-extent
+      location_type: filesystem-path|artifact|logical-storage|remote-storage|unknown
+      location: string
+      content_availability: complete|partial|descriptor-only|metadata-only|remote-not-acquired|missing|unreadable|unknown
+      identity_status: verified-content|verified-descriptor|correlated|ambiguous|unverified
+      size_bytes: integer|null
+      format: raw|qcow2|vmdk|vhd|vhdx|e01|rbd|zvol|lv|filesystem-tree|unknown
+      backing_refs:
+        - string
+      layer_node_refs:
+        - string
+      source_artifact_id: "artifact-<uuid>|null"
+      analysis_readiness: ready|limited|not-ready
+      analysis_readiness_basis:
+        - string
+      large_artifact_status: required|pending|completed|not-required|unknown
+      artifact_refs:
+        - "artifact-<uuid>"
+      ledger_event_refs:
+        - "led-<uuid>"
+      basis:
+        - string
+      confidence: high|medium|low
+  timeline_candidates:
+    - cluster_scope_id: string
+      candidate_id: string
+      original_timestamp: string|null
+      normalized_timestamp: ISO8601|null
+      timezone_offset: string|null
+      timezone_name: string|null
+      timezone_assumption: string|null
+      clock_skew_seconds: integer|null
+      time_precision: exact|second|minute|day|unknown
+      source_type_hint: pve-log|ceph-log|file-time|unsupported-cluster-log
+      source_artifact_id: "artifact-<uuid>"
+      parser_id: string
+      actor: string|null
+      action: string
+      target: string|null
+      ledger_event_refs:
+        - "led-<uuid>"
+      basis:
+        - string
+      confidence: high|medium|low
+      normalization_status: ready|needs-review|unsupported-source
+  cross_domain_candidates:
+    - candidate_id: string
+      cluster_scope_id: string
+      skill: server-rebuild-planner|server-rebuild-executor|remote-server-live-response|linux-server-forensics|docker-container-forensics|database-server-forensics|webapp-server-forensics|timeline-reconstruction|large-artifact-strategy
+      basis:
+        - string
+      confidence: high|medium|low
+      connection_ids:
+        - string
+      artifact_refs:
+        - "artifact-<uuid>"
+      finding_refs:
+        - "finding-<uuid>"
+      ledger_event_refs:
+        - "led-<uuid>"
+      dependency_step_ids:
+        - "step-<uuid>"
+      workload_refs:
+        - cluster_scope_id: string
+          workload_id: string
+          object_type: vm|container|vm-template|container-template
+      planner_authorization:
+        planner_step_id: "step-<uuid>|null"
+        plan_id: string|null
+        plan_status: ready|blocked|rejected|null
+      targeted_collection_request:
+        actions:
+          - action_id: string
+            action_type: cluster-status|node-list|quorum-status|storage-config|vm-list|vm-config|container-config|ceph-status|ceph-health-detail|ceph-osd-tree|ceph-pool-list|ceph-rbd-list|lvm-metadata|mdraid-detail|zfs-status|btrfs-filesystem-show|bounded-config-copy|bounded-log-collection
+            target_type: cluster|node|vm|container|storage|disk
+            target_ref: string
+            cluster_scope_id: string
+            connection_id: string
+            source_path: string|null
+            allowed_path_scope_id: string|null
+            since: ISO8601|null
+            until: ISO8601|null
+            max_objects: integer
+            max_output_bytes: integer
+            purpose: string
+            impact_level: low|medium|high
+            sensitive_output_expected: boolean
+            capture_mode: standard-artifact|protected-raw-and-redacted-derivative|redacted-only
+            expected_footprint:
+              - string
+        paths:
+          - action_id: string
+            path_role: remote-config-source|remote-log-source
+            path: string
+        max_output_bytes: integer
+        reason: string
+  effective_limits:
+    max_actions:
+      value: integer|null
+      status: resolved|unresolved|not-applicable
+      basis:
+        - string
+    max_output_bytes:
+      value: integer|null
+      status: resolved|unresolved|not-applicable
+      basis:
+        - string
+    max_objects_per_action:
+      value: integer|null
+      status: resolved|unresolved|not-applicable
+      basis:
+        - string
+    max_log_bytes:
+      value: integer|null
+      status: resolved|unresolved|not-applicable
+      basis:
+        - string
+    max_config_bytes:
+      value: integer|null
+      status: resolved|unresolved|not-applicable
+      basis:
+        - string
+    max_archive_files:
+      value: integer|null
+      status: resolved|unresolved|not-applicable
+      basis:
+        - string
+    max_archive_expanded_bytes:
+      value: integer|null
+      status: resolved|unresolved|not-applicable
+      basis:
+        - string
+    max_disk_members:
+      value: integer|null
+      status: resolved|unresolved|not-applicable
+      basis:
+        - string
+    max_bytes_sampled_per_disk:
+      value: integer|null
+      status: resolved|unresolved|not-applicable
+      basis:
+        - string
+    max_image_candidates:
+      value: integer|null
+      status: resolved|unresolved|not-applicable
+      basis:
+        - string
+    max_depth:
+      value: integer|null
+      status: resolved|unresolved|not-applicable
+      basis:
+        - string
+    max_objects:
+      value: integer|null
+      status: resolved|unresolved|not-applicable
+      basis:
+        - string
+    max_paths:
+      value: integer|null
+      status: resolved|unresolved|not-applicable
+      basis:
+        - string
+  blockers:
+    - blocker_id: string
+      cluster_scope_id: string|null
+      error_class: environment_mismatch|unsupported_platform|session_unavailable|cluster_scope_mismatch|node_scope_mismatch|vm_scope_mismatch|container_scope_mismatch|storage_scope_mismatch|root_path_invalid|disk_member_missing|metadata_missing|quorum_unknown|split_brain_suspected|raid_degraded|lvm_metadata_incomplete|zfs_metadata_incomplete|ceph_map_incomplete|distributed_storage_health_degraded|backing_chain_incomplete|image_content_unavailable|placeholder_only|large_artifact_incomplete|output_limit_exceeded|parse_failure|timezone_uncertain|evidence_conflict|targeted_collection_required|planner_authorization_missing
+      scope: cluster|node|disk|storage|layer|vm|snapshot|image|timeline|collection
+      target_ref: string|null
+      message: string
+      recoverable: boolean
+      required_handoff: server-forensics-router|server-rebuild-planner|server-rebuild-executor|remote-server-live-response|linux-server-forensics|docker-container-forensics|database-server-forensics|webapp-server-forensics|timeline-reconstruction|large-artifact-strategy|null
+      artifact_refs:
+        - "artifact-<uuid>"
+      ledger_event_refs:
+        - "led-<uuid>"
+      basis:
+        - string
+      confidence: high|medium|low
 ```
+<!-- cluster-payload-contract:end -->
+
+Request 与 Response 的共享不变量如下：
+
+- `analysis_scope_id` 只标识本次分析范围；具体 Cluster 使用 `cluster_scope_id`，所有对象引用均以它参与复合键校验。
+- live/rebuilt 要求当前 Session、非空 Connection 列表及属于该 Session 的目标；offline 禁止 Session、Connection 与 live Action。
+- live Disk Action 只能由 `allowed_disk_targets` 批准；`disk_set_members` 和 `disk_map` 都不是 live 授权。
+- bounded copy/log Action 必须经唯一 `allowed_path_scope_id` 绑定批准 Node 与路径。
+- `effective_limits` 每项独立记录 `value`、`status` 和 `basis`；unresolved 限制阻断受影响操作，不得编造默认值。
+- Layer Edge 固定由 provider/base/target/member 指向 consumer/snapshot/symlink representation/typed component，并按冻结端点矩阵和 DAG 规则校验。
+- `analysis_readiness=ready` 仅适用于完整内容、`verified-content` 身份、完整 backing/base/extent、已完成或不需要的大检材处理，且无阻断。
+- `server-rebuild-executor` 仅能在已批准的 Planner step 和有效 plan 存在时成为候选。
 
 ### 8.10 timeline-reconstruction
 
