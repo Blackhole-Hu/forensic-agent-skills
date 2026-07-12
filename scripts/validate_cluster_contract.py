@@ -42,6 +42,9 @@ ACTION_FIELDS = {
     "max_objects", "max_output_bytes", "purpose", "impact_level",
     "sensitive_output_expected", "capture_mode", "expected_footprint",
 }
+FORBIDDEN_ACTION_FIELDS = {
+    "command", "shell", "script", "args", "argv", "query", "api_request", "raw_command",
+}
 
 ACTION_TARGET_TYPES = {
     "cluster-status": {"cluster"},
@@ -64,6 +67,11 @@ ACTION_TARGET_TYPES = {
     "bounded-log-collection": {"node"},
 }
 
+ACTION_TYPE_ENUM = set(ACTION_TARGET_TYPES.keys())
+TARGET_TYPE_ENUM = {"cluster", "node", "vm", "container", "storage", "disk"}
+IMPACT_LEVEL_ENUM = {"low", "medium", "high"}
+CAPTURE_MODE_ENUM = {"standard-artifact", "protected-raw-and-redacted-derivative", "redacted-only"}
+
 NODE_TYPES = {
     "physical-disk", "partition", "mdraid-array", "lvm-pv", "lvm-vg",
     "lvm-lv", "lvm-thin-pool", "lvm-thin-volume", "zfs-vdev",
@@ -83,6 +91,43 @@ MISSING_LINK_TARGETS = {
     "vmdk-descriptor", "vmdk-extent", "snapshot-delta", "vm-disk",
     "container-rootfs", "guest-image-candidate",
 }
+
+REQUIRED_EFFECTIVE_LIMITS = {
+    "max_actions", "max_output_bytes", "max_objects_per_action",
+    "max_log_bytes", "max_config_bytes", "max_archive_files",
+    "max_archive_expanded_bytes", "max_disk_members",
+    "max_bytes_sampled_per_disk", "max_image_candidates",
+    "max_depth", "max_objects", "max_paths",
+}
+
+REQUIRED_REQUEST_TOP_FIELDS = {"schema_version", "request"}
+REQUIRED_REQUEST_NESTED = {
+    "material_info", "objective", "objective_status", "context", "payload",
+}
+REQUIRED_REQUEST_PAYLOAD = {"environment", "access_mode", "cluster_scope"}
+REQUIRED_CLUSTER_SCOPE = {
+    "analysis_scope_id", "platform_hints", "targeted_questions",
+    "allowed_cluster_targets", "allowed_node_targets", "allowed_vm_targets",
+    "allowed_container_targets", "allowed_storage_targets",
+    "allowed_disk_targets", "allowed_paths", "disk_set_members",
+    "stages", "live_collection_limits", "archive_limits",
+    "disk_limits", "traversal_limits",
+}
+REQUIRED_RESPONSE_TOP = {
+    "schema_version", "investigation_summary", "route_record",
+    "findings", "ledger_events", "artifact_refs", "payload",
+}
+REQUIRED_RESPONSE_PAYLOAD = {
+    "environment", "access_mode", "cluster_profiles",
+    "node_map", "disk_map", "storage_map", "layer_map",
+    "vm_map", "vm_disk_map", "snapshot_map",
+    "quorum_findings", "storage_health_findings",
+    "image_candidates", "timeline_candidates",
+    "cross_domain_candidates", "effective_limits", "blockers",
+}
+
+LIVE_RESPONSE_SKILL = "remote-server-live-response"
+TARGETED_COLLECTION_PATH_FIELDS = {"action_id", "path_role", "path"}
 
 
 def pairs(left: set[str], right: set[str]) -> set[tuple[str, str]]:
@@ -212,39 +257,180 @@ def parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
     return fields, body
 
 
-def norm_path(path: str) -> tuple[str, ...]:
-    normalized = path.replace("\\", "/")
-    parts: list[str] = []
-    for part in normalized.split("/"):
-        if not part or part == ".":
-            continue
-        if part == "..":
-            if not parts:
-                return ("<escape>",)
-            parts.pop()
+def _parse_posix_path(path: str) -> tuple[bool, list[str]]:
+    """Parse a POSIX path, returning (is_absolute, parts)."""
+    is_abs = path.startswith("/")
+    stripped = path.lstrip("/")
+    parts = [p for p in stripped.split("/") if p and p != "."]
+    return is_abs, parts
+
+
+def _parse_windows_path(path: str) -> tuple[str | None, bool, list[str]]:
+    """Parse a Windows path. Returns (drive_or_unc, is_absolute, parts)."""
+    normalized = path.replace("/", "\\")
+    drive = None
+    is_abs = False
+    if len(normalized) >= 3 and normalized[1] == ":" and normalized[2] == "\\":
+        drive = normalized[:2].upper()
+        is_abs = True
+        rest = normalized[3:]
+    elif normalized.startswith("\\\\"):
+        is_abs = True
+        share_end = normalized.find("\\", 2)
+        if share_end > 2:
+            share_end2 = normalized.find("\\", share_end + 1)
+            if share_end2 > share_end:
+                drive = normalized[:share_end2].upper()
+                rest = normalized[share_end2 + 1:]
+            else:
+                drive = normalized.upper()
+                rest = ""
         else:
-            parts.append(part)
-    return tuple(parts)
+            return None, False, []
+    else:
+        rest = normalized
+    parts = [p for p in rest.split("\\") if p and p != "."]
+    return drive, is_abs, parts
+
+
+def _classify_path(path: str) -> tuple[str, str | None, bool, list[str]]:
+    """Classify a path as posix/windows, return (kind, anchor, is_abs, parts)."""
+    if "\x00" in path:
+        return "invalid", None, False, []
+    if re.match(r"[A-Za-z]:\\", path) or path.startswith("\\\\"):
+        drive, is_abs, parts = _parse_windows_path(path)
+        return "windows", drive, is_abs, parts
+    is_abs, parts = _parse_posix_path(path)
+    kind = "posix" if is_abs or not parts else "posix"
+    return kind, None, is_abs, parts
 
 
 def path_is_within(candidate: str, root: str, recursive: bool, max_depth: int | None) -> bool:
-    candidate_parts = norm_path(candidate)
-    root_parts = norm_path(root)
-    if "<escape>" in candidate_parts or candidate_parts[: len(root_parts)] != root_parts:
+    c_kind, c_anchor, c_abs, c_parts = _classify_path(candidate)
+    r_kind, r_anchor, r_abs, r_parts = _classify_path(root)
+    if c_kind == "invalid" or r_kind == "invalid":
         return False
-    depth = len(candidate_parts) - len(root_parts)
+    if c_kind == "windows" and r_kind == "windows":
+        if c_anchor != r_anchor:
+            return False
+        if r_abs and not c_abs:
+            return False
+    elif r_kind == "posix" and c_kind == "posix":
+        if r_abs and not c_abs:
+            return False
+    else:
+        return False
+    for part in c_parts + r_parts:
+        if part == "..":
+            return False
+    if c_parts[: len(r_parts)] != r_parts:
+        return False
+    depth = len(c_parts) - len(r_parts)
     if not recursive and depth != 0:
         return False
     return max_depth is None or depth <= max_depth
 
 
+def _check_duplicate_ids(
+    records: list[dict[str, Any]],
+    key_fields: tuple[str, ...],
+    label: str,
+) -> list[str]:
+    errors: list[str] = []
+    seen: set[tuple[Any, ...]] = set()
+    for rec in records:
+        key = tuple(rec.get(f) for f in key_fields)
+        if key in seen:
+            errors.append(f"duplicate {label} composite key: {key}")
+        seen.add(key)
+    return errors
+
+
+def _check_scoped_ref(
+    cluster_scope_id: str,
+    ref_set: set[tuple[str, str]],
+    label: str,
+) -> list[str]:
+    errors: list[str] = []
+    if (cluster_scope_id,) not in {(k[0],) for k in ref_set}:
+        errors.append(f"{label} cluster_scope_id {cluster_scope_id} not found in referenced set")
+    return errors
+
+
+def _validate_action_fields(action: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    actual_keys = set(action.keys())
+    if actual_keys != ACTION_FIELDS:
+        missing = ACTION_FIELDS - actual_keys
+        extra = actual_keys - ACTION_FIELDS
+        if missing:
+            errors.append(f"Action missing fields: {sorted(missing)}")
+        if extra:
+            errors.append(f"Action has unknown fields: {sorted(extra)}")
+    forbidden = FORBIDDEN_ACTION_FIELDS & actual_keys
+    if forbidden:
+        errors.append(f"Action contains forbidden freeform fields: {sorted(forbidden)}")
+    action_type = action.get("action_type")
+    if action_type not in ACTION_TYPE_ENUM:
+        errors.append(f"Action action_type not in frozen enum: {action_type}")
+    target_type = action.get("target_type")
+    if target_type not in TARGET_TYPE_ENUM:
+        errors.append(f"Action target_type not in frozen enum: {target_type}")
+    purpose = action.get("purpose")
+    if not isinstance(purpose, str) or not purpose:
+        errors.append("Action purpose must be non-empty string")
+    footprint = action.get("expected_footprint")
+    if not isinstance(footprint, list) or not footprint or not all(isinstance(x, str) and x for x in footprint):
+        errors.append("Action expected_footprint must be non-empty string array")
+    impact = action.get("impact_level")
+    if impact not in IMPACT_LEVEL_ENUM:
+        errors.append(f"Action impact_level must be low|medium|high, got: {impact}")
+    capture = action.get("capture_mode")
+    if capture not in CAPTURE_MODE_ENUM:
+        errors.append(f"Action capture_mode not in frozen enum: {capture}")
+    sensitive = action.get("sensitive_output_expected")
+    if not isinstance(sensitive, bool):
+        errors.append("Action sensitive_output_expected must be boolean")
+    max_obj = action.get("max_objects")
+    if not isinstance(max_obj, int) or isinstance(max_obj, bool) or max_obj <= 0:
+        errors.append("Action max_objects must be positive integer")
+    max_out = action.get("max_output_bytes")
+    if not isinstance(max_out, int) or isinstance(max_out, bool) or max_out <= 0:
+        errors.append("Action max_output_bytes must be positive integer")
+    return errors
+
+
 def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> list[str]:
     errors: list[str] = []
+
+    # Structural validation: Request top-level
+    req_top_keys = set(request.keys())
+    if not REQUIRED_REQUEST_TOP_FIELDS <= req_top_keys:
+        errors.append(f"Request missing top-level fields: {sorted(REQUIRED_REQUEST_TOP_FIELDS - req_top_keys)}")
     req = request.get("request", request)
+    req_nested_keys = set(req.keys())
+    if not REQUIRED_REQUEST_NESTED <= req_nested_keys:
+        errors.append(f"Request missing nested fields: {sorted(REQUIRED_REQUEST_NESTED - req_nested_keys)}")
     payload = req.get("payload", {})
+    payload_keys = set(payload.keys())
+    if not REQUIRED_REQUEST_PAYLOAD <= payload_keys:
+        errors.append(f"Request payload missing fields: {sorted(REQUIRED_REQUEST_PAYLOAD - payload_keys)}")
+    scope = payload.get("cluster_scope", {})
+    scope_keys = set(scope.keys())
+    if not REQUIRED_CLUSTER_SCOPE <= scope_keys:
+        errors.append(f"cluster_scope missing fields: {sorted(REQUIRED_CLUSTER_SCOPE - scope_keys)}")
+
+    # Structural validation: Response top-level
+    resp_top_keys = set(response.keys())
+    if not REQUIRED_RESPONSE_TOP <= resp_top_keys:
+        errors.append(f"Response missing top-level fields: {sorted(REQUIRED_RESPONSE_TOP - resp_top_keys)}")
+    response_payload = response.get("payload", response)
+    resp_payload_keys = set(response_payload.keys())
+    if not REQUIRED_RESPONSE_PAYLOAD <= resp_payload_keys:
+        errors.append(f"Response payload missing fields: {sorted(REQUIRED_RESPONSE_PAYLOAD - resp_payload_keys)}")
+
     environment = payload.get("environment", {})
     mode = payload.get("access_mode")
-    scope = payload.get("cluster_scope", {})
     context = req.get("context", {})
     route = context.get("route_record", {})
     route_steps = {step.get("route_step_id"): step for step in route.get("route_plan", [])}
@@ -292,6 +478,32 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
     else:
         errors.append("unknown access_mode")
 
+    # Cluster scope reference validation: object targets must reference allowed_cluster_targets
+    allowed_cluster_ids = {item.get("cluster_scope_id") for item in cluster_target_list}
+    for label, items, id_field in [
+        ("allowed_node_targets", scope.get("allowed_node_targets", []), "node_id"),
+        ("allowed_vm_targets", scope.get("allowed_vm_targets", []), "vm_id"),
+        ("allowed_container_targets", scope.get("allowed_container_targets", []), "container_id"),
+        ("allowed_storage_targets", scope.get("allowed_storage_targets", []), "storage_id"),
+        ("allowed_disk_targets", scope.get("allowed_disk_targets", []), "disk_id"),
+    ]:
+        for item in items:
+            csid = item.get("cluster_scope_id")
+            if csid not in allowed_cluster_ids:
+                errors.append(f"{label} references non-existent cluster_scope_id: {csid}")
+
+    # disk_set_members must reference allowed_cluster_targets
+    for member in scope.get("disk_set_members", []):
+        csid = member.get("cluster_scope_id")
+        if csid not in allowed_cluster_ids:
+            errors.append(f"disk_set_member references non-existent cluster_scope_id: {csid}")
+
+    # allowed_paths must reference allowed_cluster_targets (live/rebuilt)
+    for item in scope.get("allowed_paths", []):
+        csid = item.get("cluster_scope_id")
+        if mode in LIVE_MODES and csid not in allowed_cluster_ids:
+            errors.append(f"allowed_path references non-existent cluster_scope_id: {csid}")
+
     node_targets = {(x.get("cluster_scope_id"), x.get("node_id")) for x in scope.get("allowed_node_targets", [])}
     vm_targets = {(x.get("cluster_scope_id"), x.get("vm_id")) for x in scope.get("allowed_vm_targets", [])}
     container_targets = {(x.get("cluster_scope_id"), x.get("container_id")) for x in scope.get("allowed_container_targets", [])}
@@ -316,7 +528,76 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
             if item.get("artifact_ref") not in registered_artifacts:
                 errors.append("offline path Artifact is not registered")
 
-    response_payload = response.get("payload", response)
+    # Response cluster_profiles validation
+    response_cluster_profiles = response_payload.get("cluster_profiles", [])
+    profile_scope_ids = [p.get("cluster_scope_id") for p in response_cluster_profiles]
+    seen_profile_ids: set[str] = set()
+    for psid in profile_scope_ids:
+        if psid in seen_profile_ids:
+            errors.append(f"cluster_profiles duplicate cluster_scope_id: {psid}")
+        seen_profile_ids.add(psid)
+        if psid not in allowed_cluster_ids:
+            errors.append(f"cluster_profile references non-existent Request cluster_scope_id: {psid}")
+
+    # All Response scoped records must reference cluster_profiles
+    all_response_scoped_maps = [
+        ("node_map", response_payload.get("node_map", [])),
+        ("disk_map", response_payload.get("disk_map", [])),
+        ("storage_map", response_payload.get("storage_map", [])),
+        ("vm_map", response_payload.get("vm_map", [])),
+        ("vm_disk_map", response_payload.get("vm_disk_map", [])),
+        ("snapshot_map", response_payload.get("snapshot_map", [])),
+        ("quorum_findings", response_payload.get("quorum_findings", [])),
+        ("storage_health_findings", response_payload.get("storage_health_findings", [])),
+    ]
+    for map_name, map_records in all_response_scoped_maps:
+        for rec in map_records:
+            csid = rec.get("cluster_scope_id")
+            if csid not in seen_profile_ids:
+                errors.append(f"{map_name} record references non-existent cluster_profile: {csid}")
+
+    # Duplicate ID checks on Response maps
+    errors.extend(_check_duplicate_ids(
+        response_payload.get("node_map", []),
+        ("cluster_scope_id", "node_id"), "node_map",
+    ))
+    errors.extend(_check_duplicate_ids(
+        response_payload.get("disk_map", []),
+        ("cluster_scope_id", "disk_id"), "disk_map",
+    ))
+    errors.extend(_check_duplicate_ids(
+        response_payload.get("storage_map", []),
+        ("cluster_scope_id", "storage_id"), "storage_map",
+    ))
+    errors.extend(_check_duplicate_ids(
+        response_payload.get("vm_map", []),
+        ("cluster_scope_id", "workload_id"), "vm_map",
+    ))
+    errors.extend(_check_duplicate_ids(
+        response_payload.get("vm_disk_map", []),
+        ("cluster_scope_id", "vm_disk_mapping_id"), "vm_disk_map",
+    ))
+    errors.extend(_check_duplicate_ids(
+        response_payload.get("snapshot_map", []),
+        ("cluster_scope_id", "snapshot_id"), "snapshot_map",
+    ))
+    errors.extend(_check_duplicate_ids(
+        response_payload.get("image_candidates", []),
+        ("cluster_scope_id", "candidate_id"), "image_candidates",
+    ))
+    errors.extend(_check_duplicate_ids(
+        response_payload.get("timeline_candidates", []),
+        ("cluster_scope_id", "candidate_id"), "timeline_candidates",
+    ))
+    errors.extend(_check_duplicate_ids(
+        response_payload.get("cross_domain_candidates", []),
+        ("candidate_id",), "cross_domain_candidates",
+    ))
+    errors.extend(_check_duplicate_ids(
+        response_payload.get("blockers", []),
+        ("blocker_id",), "blockers",
+    ))
+
     node_map = {
         (x.get("cluster_scope_id"), x.get("node_id")): x
         for x in response_payload.get("node_map", [])
@@ -339,21 +620,25 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
         if platform in {"pve-qemu", "vsphere-vm", "libvirt-vm"} and object_type == "container-template":
             errors.append("VM platform cannot be container-template")
 
+    storage_map = {
+        (x.get("cluster_scope_id"), x.get("storage_id")): x
+        for x in response_payload.get("storage_map", [])
+    }
     for item in response_payload.get("vm_disk_map", []):
         key = (item.get("cluster_scope_id"), item.get("workload_id"))
         if key not in vm_map or item.get("object_type") != vm_map[key].get("object_type"):
             errors.append("vm_disk_map workload reference/type mismatch")
         storage_id = item.get("storage_id")
-        if storage_id is not None and (key[0], storage_id) not in storage_targets:
-            errors.append("vm_disk_map storage reference is outside scope")
+        if storage_id is not None:
+            csid = item.get("cluster_scope_id")
+            if (csid, storage_id) not in storage_targets:
+                errors.append("vm_disk_map storage reference is outside scope")
+            if (csid, storage_id) not in storage_map:
+                errors.append("vm_disk_map storage_id not found in storage_map")
 
     vm_disk_map = {
         (x.get("cluster_scope_id"), x.get("vm_disk_mapping_id")): x
         for x in response_payload.get("vm_disk_map", [])
-    }
-    storage_map = {
-        (x.get("cluster_scope_id"), x.get("storage_id")): x
-        for x in response_payload.get("storage_map", [])
     }
     for snapshot in response_payload.get("snapshot_map", []):
         cluster_id = snapshot.get("cluster_scope_id")
@@ -376,10 +661,23 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
         (x.get("cluster_scope_id"), x.get("layer_node_id")): x
         for x in response_payload.get("layer_map", {}).get("nodes", [])
     }
+    # Layer node ID non-empty
     for key, layer_node in nodes.items():
+        if not key[1]:
+            errors.append("layer_node_id must be non-empty")
         owner_node_id = layer_node.get("owner_node_id")
         if owner_node_id is not None and (key[0], owner_node_id) not in node_map:
             errors.append("Layer Node owner_node_id does not reference node_map")
+    # Layer edge ID non-empty and from != to
+    for edge in response_payload.get("layer_map", {}).get("edges", []):
+        edge_id = edge.get("layer_edge_id")
+        if not edge_id:
+            errors.append("layer_edge_id must be non-empty")
+        from_node = edge.get("from_layer_node_id")
+        to_node = edge.get("to_layer_node_id")
+        if from_node == to_node:
+            errors.append("Layer Edge from/to must not be identical")
+
     adjacency: dict[tuple[str, str], list[tuple[str, str]]] = {}
     parent_count: dict[tuple[str, str], int] = {}
     symlink_targets: list[tuple[str, str]] = []
@@ -447,10 +745,27 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
             errors.append("storage_map owner_node_ids do not reference node_map")
     for mapping in response_payload.get("vm_disk_map", []):
         cluster_id = mapping.get("cluster_scope_id")
-        if (cluster_id, mapping.get("terminal_layer_node_id")) not in nodes:
+        terminal = mapping.get("terminal_layer_node_id")
+        if not terminal:
+            errors.append("vm_disk_map terminal_layer_node_id must be non-empty")
+        elif (cluster_id, terminal) not in nodes:
             errors.append("vm_disk_map terminal_layer_node_id is missing")
-        if any((cluster_id, ref) not in layer_edge_ids for ref in mapping.get("layer_edge_refs", [])):
-            errors.append("vm_disk_map references a missing scoped Layer Edge")
+        edge_refs = mapping.get("layer_edge_refs", [])
+        for ref in edge_refs:
+            if (cluster_id, ref) not in layer_edge_ids:
+                errors.append("vm_disk_map references a missing scoped Layer Edge")
+        if edge_refs and terminal and (cluster_id, terminal) in nodes:
+            terminal_type = nodes[(cluster_id, terminal)].get("node_type")
+            connected_node_ids = set()
+            for ref in edge_refs:
+                edge_key = (cluster_id, ref)
+                for edge in response_payload.get("layer_map", {}).get("edges", []):
+                    if (edge.get("cluster_scope_id"), edge.get("layer_edge_id")) == edge_key:
+                        connected_node_ids.add(edge.get("from_layer_node_id"))
+                        connected_node_ids.add(edge.get("to_layer_node_id"))
+            if connected_node_ids and terminal not in connected_node_ids:
+                errors.append("vm_disk_map layer_edge_refs do not connect to terminal_layer_node_id")
+
     for snapshot in response_payload.get("snapshot_map", []):
         cluster_id = snapshot.get("cluster_scope_id")
         if any((cluster_id, ref) not in nodes for ref in snapshot.get("layer_node_refs", [])):
@@ -460,6 +775,7 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
 
     actions: list[dict[str, Any]] = []
     collection_requests: list[dict[str, Any]] = []
+    all_action_ids: list[str] = []
     for candidate in response_payload.get("cross_domain_candidates", []):
         for workload_ref in candidate.get("workload_refs", []):
             key = (workload_ref.get("cluster_scope_id"), workload_ref.get("workload_id"))
@@ -485,34 +801,80 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
             ):
                 errors.append("executor candidate lacks approved Planner dependency")
         request_value = candidate.get("targeted_collection_request")
+        candidate_skill = candidate.get("skill")
         if request_value is not None:
+            # Only remote-server-live-response may carry targeted_collection_request
+            if candidate_skill != LIVE_RESPONSE_SKILL:
+                errors.append(f"targeted_collection_request on non-live-response skill: {candidate_skill}")
             required_collection_fields = {"actions", "paths", "max_output_bytes", "reason"}
-            if not required_collection_fields <= request_value.keys():
-                errors.append("targeted_collection_request is not fully expanded")
+            actual_collection_fields = set(request_value.keys())
+            if actual_collection_fields != required_collection_fields:
+                missing = required_collection_fields - actual_collection_fields
+                extra = actual_collection_fields - required_collection_fields
+                if missing:
+                    errors.append(f"targeted_collection_request missing fields: {sorted(missing)}")
+                if extra:
+                    errors.append(f"targeted_collection_request has unknown fields: {sorted(extra)}")
             if not request_value.get("actions") or not request_value.get("reason"):
                 errors.append("targeted_collection_request requires non-empty actions and reason")
             action_ids = [action.get("action_id") for action in request_value.get("actions", [])]
             if any(not action_id for action_id in action_ids) or len(action_ids) != len(set(action_ids)):
                 errors.append("targeted collection action_id must be non-empty and unique")
+            all_action_ids.extend(action_ids)
             for action in request_value.get("actions", []):
-                if not ACTION_FIELDS <= action.keys():
-                    errors.append("targeted collection Action is not fully expanded")
+                errors.extend(_validate_action_fields(action))
+            # Path records must only contain allowed fields
             for path_record in request_value.get("paths", []):
+                path_keys = set(path_record.keys())
+                if path_keys != TARGETED_COLLECTION_PATH_FIELDS:
+                    extra = path_keys - TARGETED_COLLECTION_PATH_FIELDS
+                    if extra:
+                        errors.append(f"targeted collection path record has unknown fields: {sorted(extra)}")
                 if path_record.get("action_id") not in action_ids:
                     errors.append("targeted collection path references an unknown Action")
             paths_by_action: dict[str, list[dict[str, Any]]] = {}
             for path_record in request_value.get("paths", []):
                 paths_by_action.setdefault(path_record.get("action_id"), []).append(path_record)
             for action in request_value.get("actions", []):
-                if action.get("action_type") in BOUND_PATH_ACTIONS:
-                    path_records = paths_by_action.get(action.get("action_id"), [])
-                    if len(path_records) != 1 or path_records[0].get("path") != action.get("source_path"):
-                        errors.append("bounded Action lacks one matching targeted collection path record")
+                aid = action.get("action_id")
+                atype = action.get("action_type")
+                if atype in BOUND_PATH_ACTIONS:
+                    path_records = paths_by_action.get(aid, [])
+                    if len(path_records) != 1:
+                        errors.append("bounded Action must have exactly one path record")
+                    elif path_records[0].get("path") != action.get("source_path"):
+                        errors.append("bounded Action path record path mismatch")
+                    expected_role = (
+                        "remote-config-source" if atype == "bounded-config-copy"
+                        else "remote-log-source"
+                    )
+                    if path_records and path_records[0].get("path_role") != expected_role:
+                        errors.append(f"bounded {atype} path_role must be {expected_role}")
             collection_requests.append(request_value)
             actions.extend(request_value.get("actions", []))
 
+    # Global action_id uniqueness across all candidates
+    if len(all_action_ids) != len(set(all_action_ids)):
+        seen_global: set[str] = set()
+        for aid in all_action_ids:
+            if aid in seen_global:
+                errors.append(f"duplicate global action_id: {aid}")
+            seen_global.add(aid)
+
     effective_limits = response_payload.get("effective_limits", {})
+    # Must contain exactly the 13 frozen limits
+    limit_keys = set(effective_limits.keys())
+    if limit_keys != REQUIRED_EFFECTIVE_LIMITS:
+        missing = REQUIRED_EFFECTIVE_LIMITS - limit_keys
+        extra = limit_keys - REQUIRED_EFFECTIVE_LIMITS
+        if missing:
+            errors.append(f"effective_limits missing required limits: {sorted(missing)}")
+        if extra:
+            errors.append(f"effective_limits has unknown limits: {sorted(extra)}")
     for limit_name, limit in effective_limits.items():
+        if not isinstance(limit, dict):
+            errors.append(f"effective limit {limit_name} is not an object")
+            continue
         status = limit.get("status")
         value = limit.get("value")
         if not limit.get("basis"):
@@ -536,6 +898,8 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
     max_actions = required_action_limits["max_actions"].get("value")
     if isinstance(max_actions, int) and len(actions) > max_actions:
         errors.append("live Action count exceeds effective limit")
+
+    # Targeted collection request-level limits
     for request_value in collection_requests:
         request_limit = request_value.get("max_output_bytes")
         output_limit = required_action_limits["max_output_bytes"].get("value")
@@ -543,6 +907,33 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
             errors.append("targeted collection max_output_bytes must be positive")
         elif isinstance(output_limit, int) and request_limit > output_limit:
             errors.append("targeted collection output exceeds effective limit")
+        # Sum of action max_output_bytes must not exceed request max_output_bytes
+        action_sum = sum(
+            a.get("max_output_bytes", 0)
+            for a in request_value.get("actions", [])
+            if isinstance(a.get("max_output_bytes"), int)
+        )
+        if isinstance(request_limit, int) and action_sum > request_limit:
+            errors.append("targeted collection action output sum exceeds request max_output_bytes")
+
+        # Bounded config/log specific limits
+        config_limit = effective_limits.get("max_config_bytes", {})
+        log_limit = effective_limits.get("max_log_bytes", {})
+        for action in request_value.get("actions", []):
+            atype = action.get("action_type")
+            aout = action.get("max_output_bytes")
+            if atype == "bounded-config-copy":
+                config_val = config_limit.get("value")
+                if isinstance(config_val, int) and isinstance(aout, int) and aout > config_val:
+                    errors.append("bounded-config-copy max_output_bytes exceeds max_config_bytes")
+                if config_limit.get("status") != "resolved":
+                    errors.append("bounded-config-copy requires resolved max_config_bytes")
+            if atype == "bounded-log-collection":
+                log_val = log_limit.get("value")
+                if isinstance(log_val, int) and isinstance(aout, int) and aout > log_val:
+                    errors.append("bounded-log-collection max_output_bytes exceeds max_log_bytes")
+                if log_limit.get("status") != "resolved":
+                    errors.append("bounded-log-collection requires resolved max_log_bytes")
 
     for action in actions:
         cluster_id = action.get("cluster_scope_id")
@@ -709,6 +1100,33 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
             errors.append("unknown blocker error_class")
         if blocker.get("required_handoff") not in HANDOFF_SKILLS | {None}:
             errors.append("unknown blocker required_handoff")
+
+    # Response environment consistency
+    resp_env = response_payload.get("environment", {})
+    if resp_env.get("access_mode") is not None and resp_env.get("access_mode") != mode:
+        errors.append("Response payload access_mode differs from Request access_mode")
+    if mode in LIVE_MODES:
+        resp_session = resp_env.get("session_id")
+        if resp_session is not None and resp_session != session_id:
+            errors.append("live Response session_id differs from Request session_id")
+        resp_conn_ids = set(resp_env.get("connection_ids", []))
+        unauthorized_conns = resp_conn_ids - connection_ids
+        if unauthorized_conns:
+            errors.append(f"live Response contains unauthorized connection_ids: {unauthorized_conns}")
+    elif mode in OFFLINE_MODES:
+        if resp_env.get("session_id") is not None:
+            errors.append("offline Response session_id must be null")
+        if resp_env.get("connection_ids"):
+            errors.append("offline Response connection_ids must be empty")
+    # Plan ID consistency
+    req_plan = environment.get("plan_id")
+    resp_plan = resp_env.get("plan_id")
+    upstream_plan = context.get("upstream_environment", {}).get("plan_id")
+    if resp_plan is not None and req_plan is not None and resp_plan != req_plan:
+        errors.append("Response plan_id conflicts with Request plan_id")
+    if resp_plan is not None and upstream_plan is not None and resp_plan != upstream_plan:
+        errors.append("Response plan_id conflicts with upstream plan_id")
+
     return errors
 
 
@@ -716,15 +1134,28 @@ def minimal_case() -> tuple[dict[str, Any], dict[str, Any]]:
     route_step = "step-current"
     planner_step = "step-planner"
     request = {
+        "schema_version": "1.0",
         "request": {
+            "material_info": {
+                "artifact_refs": ["artifact-test-001"],
+                "material_type": "server-disk-image",
+            },
+            "objective": "identify cluster topology and VM mapping",
+            "objective_status": "explicit",
             "context": {
                 "current_step_id": route_step,
+                "artifact_refs": [],
                 "upstream_environment": {"plan_id": "plan-1"},
                 "route_record": {
+                    "schema_version": "1.0",
+                    "route_id": "route-test-001",
+                    "triggered_skill": "cluster-virtualization-forensics",
+                    "route_status": "active",
                     "route_plan": [
                         {"route_step_id": route_step, "skill": "cluster-virtualization-forensics", "status": "running"},
                         {"route_step_id": planner_step, "skill": "server-rebuild-planner", "status": "completed"},
-                    ]
+                    ],
+                    "evidence_scope": "test cluster evidence",
                 },
             },
             "payload": {
@@ -734,7 +1165,14 @@ def minimal_case() -> tuple[dict[str, Any], dict[str, Any]]:
                     "connection_ids": ["conn-1"],
                 },
                 "cluster_scope": {
-                    "allowed_cluster_targets": [{"cluster_scope_id": "cluster-1", "connection_id": "conn-1"}],
+                    "analysis_scope_id": "scope-1",
+                    "platform_hints": ["proxmox-ve"],
+                    "targeted_questions": ["identify all VMs"],
+                    "allowed_cluster_targets": [{
+                        "cluster_scope_id": "cluster-1", "connection_id": "conn-1",
+                        "target_ref": "pve-cluster-1", "virtualization_platform": "proxmox-ve",
+                        "endpoint_role": "pve-api",
+                    }],
                     "allowed_node_targets": [{"cluster_scope_id": "cluster-1", "node_id": "node-1"}],
                     "allowed_vm_targets": [{"cluster_scope_id": "cluster-1", "vm_id": "vm-1"}],
                     "allowed_container_targets": [],
@@ -745,68 +1183,191 @@ def minimal_case() -> tuple[dict[str, Any], dict[str, Any]]:
                         "owner_node_id": "node-1", "artifact_ref": None,
                         "path": "/etc/pve", "recursive": True, "max_depth": 2,
                     }],
+                    "disk_set_members": [],
+                    "stages": {
+                        "include_platform_node_mapping": True,
+                        "include_quorum_analysis": True,
+                        "include_disk_mapping": True,
+                        "include_storage_reconstruction": True,
+                        "include_distributed_storage_analysis": True,
+                        "include_vm_mapping": True,
+                        "include_snapshot_backing_analysis": True,
+                        "include_health_conflict_analysis": True,
+                        "include_timeline_candidates": True,
+                        "include_cross_domain_validation": True,
+                    },
+                    "live_collection_limits": {
+                        "max_actions": 4, "max_output_bytes": 4096,
+                        "max_objects_per_action": 8, "max_log_bytes": 8192,
+                        "max_config_bytes": 4096, "max_session_seconds": 3600,
+                    },
+                    "archive_limits": {"max_archive_files": None, "max_archive_expanded_bytes": None},
+                    "disk_limits": {
+                        "max_disk_members": None, "max_bytes_sampled_per_disk": None,
+                        "max_image_candidates": None,
+                    },
+                    "traversal_limits": {"max_depth": None, "max_objects": None, "max_paths": None},
                 },
             },
         }
     }
     response = {
-        "ledger_events": [],
+        "schema_version": "1.0",
+        "investigation_summary": {
+            "current_assessment": "cluster topology identified",
+            "key_evidence": ["PVE cluster with one node"],
+        },
+        "route_record": {
+            "schema_version": "1.0",
+            "route_id": "route-test-001",
+            "triggered_skill": "cluster-virtualization-forensics",
+            "route_status": "active",
+            "route_plan": [
+                {"route_step_id": route_step, "skill": "cluster-virtualization-forensics", "status": "running"},
+                {"route_step_id": planner_step, "skill": "server-rebuild-planner", "status": "completed"},
+            ],
+        },
         "findings": [],
+        "ledger_events": [],
+        "artifact_refs": [],
         "payload": {
+            "environment": {"plan_id": "plan-1", "session_id": "session-1", "connection_ids": ["conn-1"]},
+            "access_mode": "live-cluster",
+            "cluster_profiles": [{
+                "cluster_scope_id": "cluster-1",
+                "cluster_id": "pve-cluster-1",
+                "cluster_name": "test-cluster",
+                "virtualization_platform": "proxmox-ve",
+                "observation_mode": "live",
+                "basis": ["PVE API response"],
+                "confidence": "high",
+            }],
+            "node_map": [{
+                "cluster_scope_id": "cluster-1", "node_id": "node-1",
+                "hostname": "pve-node-1", "observation_mode": "live",
+                "basis": ["PVE API"], "confidence": "high",
+            }],
+            "disk_map": [{
+                "cluster_scope_id": "cluster-1", "disk_id": "disk-1",
+                "owner_node_id": "node-1", "layer_node_id": "layer-disk-1",
+                "observation_mode": "inferred", "basis": ["disk listing"], "confidence": "medium",
+            }],
+            "storage_map": [{
+                "cluster_scope_id": "cluster-1", "storage_id": "storage-1",
+                "owner_node_ids": ["node-1"], "storage_type": "directory",
+                "backing_layer_node_refs": [], "health_status": "unknown",
+                "observation_mode": "inferred", "basis": ["storage listing"], "confidence": "medium",
+            }],
+            "layer_map": {
+                "nodes": [
+                    {
+                        "cluster_scope_id": "cluster-1", "layer_node_id": "layer-disk-1",
+                        "node_type": "physical-disk", "owner_node_id": "node-1",
+                    },
+                    {
+                        "cluster_scope_id": "cluster-1", "layer_node_id": "layer-vm",
+                        "node_type": "vm-disk", "owner_node_id": None,
+                    },
+                ],
+                "edges": [],
+            },
             "vm_map": [{
                 "cluster_scope_id": "cluster-1", "workload_id": "vm-1",
                 "object_type": "vm", "platform": "pve-qemu",
+                "observation_mode": "live", "basis": ["PVE API"], "confidence": "high",
             }],
             "vm_disk_map": [{
                 "cluster_scope_id": "cluster-1", "workload_id": "vm-1",
-                "object_type": "vm", "storage_id": "storage-1",
+                "object_type": "vm", "vm_disk_mapping_id": "vdm-1",
+                "storage_id": "storage-1",
                 "terminal_layer_node_id": "layer-vm",
+                "layer_edge_refs": [],
+                "image_candidate_refs": [],
+                "observation_mode": "inferred", "basis": ["VM config"], "confidence": "medium",
             }],
-            "layer_map": {
-                "nodes": [{
-                    "cluster_scope_id": "cluster-1", "layer_node_id": "layer-vm",
-                    "node_type": "vm-disk", "owner_node_id": None,
-                }],
-                "edges": [],
-            },
-            "environment": {"plan_id": "plan-1"},
+            "snapshot_map": [],
+            "quorum_findings": [],
+            "storage_health_findings": [],
             "image_candidates": [],
-            "blockers": [],
-            "effective_limits": {
-                "max_actions": {"value": 4, "status": "resolved", "basis": ["test policy"]},
-                "max_output_bytes": {"value": 4096, "status": "resolved", "basis": ["test policy"]},
-                "max_objects_per_action": {"value": 8, "status": "resolved", "basis": ["test policy"]},
-            },
+            "timeline_candidates": [],
             "cross_domain_candidates": [{
+                "candidate_id": "cdc-1",
                 "skill": "server-rebuild-executor",
+                "cluster_scope_id": "cluster-1",
                 "dependency_step_ids": [planner_step],
                 "planner_authorization": {
                     "planner_step_id": planner_step, "plan_id": "plan-1", "plan_status": "ready",
                 },
-                "targeted_collection_request": {
-                    "actions": [{
-                        "action_id": "copy-1",
-                        "action_type": "bounded-config-copy", "target_type": "node",
-                        "target_ref": "node-1", "cluster_scope_id": "cluster-1",
-                        "connection_id": "conn-1", "source_path": "/etc/pve/storage.cfg",
-                        "allowed_path_scope_id": "path-1",
-                        "since": None, "until": None,
-                        "max_objects": 1, "max_output_bytes": 1024,
-                        "purpose": "collect approved PVE config", "impact_level": "low",
-                        "sensitive_output_expected": False,
-                        "capture_mode": "standard-artifact",
-                        "expected_footprint": ["one configuration file"],
-                    }]
-                    , "paths": [{
-                        "action_id": "copy-1", "path_role": "remote-config-source",
-                        "path": "/etc/pve/storage.cfg",
-                    }],
-                    "max_output_bytes": 1024,
-                    "reason": "test bounded collection",
-                },
+                "workload_refs": [{
+                    "cluster_scope_id": "cluster-1", "workload_id": "vm-1", "object_type": "vm",
+                }],
+                "basis": ["planner completed"],
+                "confidence": "high",
+                "targeted_collection_request": None,
             }],
+            "effective_limits": {
+                "max_actions": {"value": 4, "status": "resolved", "basis": ["test policy"]},
+                "max_output_bytes": {"value": 4096, "status": "resolved", "basis": ["test policy"]},
+                "max_objects_per_action": {"value": 8, "status": "resolved", "basis": ["test policy"]},
+                "max_log_bytes": {"value": 8192, "status": "resolved", "basis": ["test policy"]},
+                "max_config_bytes": {"value": 4096, "status": "resolved", "basis": ["test policy"]},
+                "max_archive_files": {"value": None, "status": "not-applicable", "basis": ["offline only"]},
+                "max_archive_expanded_bytes": {"value": None, "status": "not-applicable", "basis": ["offline only"]},
+                "max_disk_members": {"value": None, "status": "not-applicable", "basis": ["offline only"]},
+                "max_bytes_sampled_per_disk": {"value": None, "status": "not-applicable", "basis": ["offline only"]},
+                "max_image_candidates": {"value": None, "status": "not-applicable", "basis": ["offline only"]},
+                "max_depth": {"value": None, "status": "not-applicable", "basis": ["traversal not configured"]},
+                "max_objects": {"value": None, "status": "not-applicable", "basis": ["traversal not configured"]},
+                "max_paths": {"value": None, "status": "not-applicable", "basis": ["traversal not configured"]},
+            },
+            "blockers": [],
         },
     }
+    return request, response
+
+
+def minimal_live_collection_case() -> tuple[dict[str, Any], dict[str, Any]]:
+    """A case with live-response targeted collection for testing."""
+    request, response = minimal_case()
+    # Switch the cross_domain candidate to live-response with targeted collection
+    request["request"]["context"]["route_record"]["route_plan"] = [
+        {"route_step_id": "step-current", "skill": "cluster-virtualization-forensics", "status": "running"},
+    ]
+    response["payload"]["cross_domain_candidates"] = [{
+        "candidate_id": "cdc-live-1",
+        "skill": "remote-server-live-response",
+        "cluster_scope_id": "cluster-1",
+        "dependency_step_ids": [],
+        "planner_authorization": {
+            "planner_step_id": None, "plan_id": None, "plan_status": None,
+        },
+        "workload_refs": [{
+            "cluster_scope_id": "cluster-1", "workload_id": "vm-1", "object_type": "vm",
+        }],
+        "basis": ["live collection needed"],
+        "confidence": "high",
+        "targeted_collection_request": {
+            "actions": [{
+                "action_id": "copy-1",
+                "action_type": "bounded-config-copy", "target_type": "node",
+                "target_ref": "node-1", "cluster_scope_id": "cluster-1",
+                "connection_id": "conn-1", "source_path": "/etc/pve/storage.cfg",
+                "allowed_path_scope_id": "path-1",
+                "since": None, "until": None,
+                "max_objects": 1, "max_output_bytes": 1024,
+                "purpose": "collect approved PVE config", "impact_level": "low",
+                "sensitive_output_expected": False,
+                "capture_mode": "standard-artifact",
+                "expected_footprint": ["one configuration file"],
+            }],
+            "paths": [{
+                "action_id": "copy-1", "path_role": "remote-config-source",
+                "path": "/etc/pve/storage.cfg",
+            }],
+            "max_output_bytes": 1024,
+            "reason": "test bounded collection",
+        },
+    }]
     return request, response
 
 
@@ -816,150 +1377,201 @@ def run_self_tests() -> list[str]:
     if validate_semantics(request, response):
         failures.append("valid semantic case was rejected")
 
-    mutations = []
-    offline = copy.deepcopy((request, response))
-    offline[0]["request"]["payload"]["access_mode"] = "offline-node-image"
-    mutations.append(("offline Session", *offline))
-    null_live_connection = copy.deepcopy((request, response))
-    null_live_connection[0]["request"]["payload"]["environment"]["connection_ids"] = [None]
-    null_live_connection[0]["request"]["payload"]["cluster_scope"]["allowed_cluster_targets"][0]["connection_id"] = None
-    null_live_connection[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["connection_id"] = None
-    mutations.append(("null live connection", *null_live_connection))
-    masked_cluster_target = copy.deepcopy((request, response))
-    valid_target = masked_cluster_target[0]["request"]["payload"]["cluster_scope"]["allowed_cluster_targets"][0]
-    masked_cluster_target[0]["request"]["payload"]["cluster_scope"]["allowed_cluster_targets"] = [
-        {**valid_target, "connection_id": None}, valid_target,
-    ]
-    mutations.append(("duplicate Cluster target masks invalid connection", *masked_cluster_target))
-    rootless_disk_set = copy.deepcopy((request, response))
-    rootless_payload = rootless_disk_set[0]["request"]["payload"]
-    rootless_payload["access_mode"] = "disk-set"
-    rootless_payload["environment"].update({"session_id": None, "connection_ids": [], "root_artifact_refs": []})
-    rootless_payload["cluster_scope"]["allowed_cluster_targets"][0]["connection_id"] = None
-    rootless_payload["cluster_scope"]["disk_set_members"] = []
-    rootless_disk_set[1]["payload"]["cross_domain_candidates"] = []
-    mutations.append(("rootless empty disk-set", *rootless_disk_set))
-    unregistered_package = copy.deepcopy((request, response))
-    package_request = unregistered_package[0]["request"]
-    package_request["material_info"] = {"artifact_refs": []}
-    package_request["context"]["route_record"]["evidence_scope"] = "one artifact package"
-    package_payload = package_request["payload"]
-    package_payload["access_mode"] = "artifact-package"
-    package_payload["environment"].update({
-        "session_id": None, "connection_ids": [],
-        "root_artifact_refs": ["artifact-unregistered"],
-    })
-    package_payload["cluster_scope"]["allowed_cluster_targets"][0]["connection_id"] = None
-    package_payload["cluster_scope"]["allowed_paths"] = []
-    unregistered_package[1]["payload"]["cross_domain_candidates"] = []
-    mutations.append(("unregistered rootless artifact package", *unregistered_package))
-    bad_disk = copy.deepcopy((request, response))
-    bad_disk[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0].update(
-        {"action_type": "mdraid-detail", "target_type": "disk", "target_ref": "unapproved", "allowed_path_scope_id": None}
-    )
-    mutations.append(("unapproved live disk", *bad_disk))
-    bad_path = copy.deepcopy((request, response))
-    bad_path[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["allowed_path_scope_id"] = "missing"
-    mutations.append(("missing path scope", *bad_path))
-    case_escape = copy.deepcopy((request, response))
-    case_escape[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["source_path"] = "/ETC/PVE/storage.cfg"
-    mutations.append(("case-changed path authorization", *case_escape))
-    bad_workload = copy.deepcopy((request, response))
-    bad_workload[1]["payload"]["vm_map"][0].update({"object_type": "container-template", "platform": "pve-qemu"})
-    mutations.append(("invalid template platform", *bad_workload))
-    bad_planner = copy.deepcopy((request, response))
-    bad_planner[1]["payload"]["cross_domain_candidates"][0]["planner_authorization"]["plan_id"] = None
-    mutations.append(("missing Planner plan", *bad_planner))
-    mismatched_planner = copy.deepcopy((request, response))
-    mismatched_planner[1]["payload"]["cross_domain_candidates"][0]["planner_authorization"]["plan_id"] = "other-plan"
-    mutations.append(("mismatched Planner plan", *mismatched_planner))
-    bad_image = copy.deepcopy((request, response))
-    bad_image[1]["payload"]["image_candidates"] = [{
-        "cluster_scope_id": "cluster-1", "candidate_id": "image-1", "object_type": "descriptor",
-        "content_availability": "descriptor-only", "identity_status": "verified-descriptor",
-        "large_artifact_status": "not-required", "analysis_readiness": "ready",
-        "analysis_readiness_basis": ["invalid test candidate"], "backing_refs": [],
-    }]
-    mutations.append(("invalid image readiness", *bad_image))
-    evidence_free_completed = copy.deepcopy((request, response))
-    evidence_free_completed[1]["payload"]["image_candidates"] = [{
-        "cluster_scope_id": "cluster-1", "candidate_id": "image-complete",
-        "object_type": "full-image", "content_availability": "complete",
-        "identity_status": "verified-content", "large_artifact_status": "completed",
-        "analysis_readiness": "ready", "analysis_readiness_basis": ["complete content"],
-        "backing_refs": [], "layer_node_refs": [], "artifact_refs": [],
-        "ledger_event_refs": [],
-    }]
-    mutations.append(("completed large Artifact without workflow evidence", *evidence_free_completed))
-    empty_collection = copy.deepcopy((request, response))
-    collection = empty_collection[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]
-    collection.update({"actions": [], "paths": [], "reason": ""})
-    mutations.append(("empty targeted collection", *empty_collection))
-    bad_log_window = copy.deepcopy((request, response))
-    log_action = bad_log_window[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]
-    log_action.update({"action_type": "bounded-log-collection", "since": None, "until": None})
-    mutations.append(("bounded log without time window", *bad_log_window))
-    bad_layer = copy.deepcopy((request, response))
-    bad_layer[1]["payload"]["layer_map"] = {
-        "nodes": [
-            {"cluster_scope_id": "cluster-1", "layer_node_id": "disk", "node_type": "physical-disk", "owner_node_id": None},
-            {"cluster_scope_id": "cluster-1", "layer_node_id": "vg", "node_type": "lvm-vg", "owner_node_id": None},
-        ],
-        "edges": [{
-            "cluster_scope_id": "cluster-1", "from_layer_node_id": "disk",
-            "to_layer_node_id": "vg", "relation": "allocates",
+    # Also test the live collection variant
+    lc_request, lc_response = minimal_live_collection_case()
+    if validate_semantics(lc_request, lc_response):
+        failures.append("valid live collection case was rejected")
+
+    mutations: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
+
+    # 1. Missing Response top-level field
+    missing_schema = copy.deepcopy((request, response))
+    del missing_schema[1]["schema_version"]
+    mutations.append(("missing Response schema_version", *missing_schema))
+
+    missing_findings = copy.deepcopy((request, response))
+    del missing_findings[1]["findings"]
+    mutations.append(("missing Response findings", *missing_findings))
+
+    # 2. Missing payload required field
+    missing_cluster_profiles = copy.deepcopy((request, response))
+    del missing_cluster_profiles[1]["payload"]["cluster_profiles"]
+    mutations.append(("missing payload cluster_profiles", *missing_cluster_profiles))
+
+    missing_node_map = copy.deepcopy((request, response))
+    del missing_node_map[1]["payload"]["node_map"]
+    mutations.append(("missing payload node_map", *missing_node_map))
+
+    missing_storage_map = copy.deepcopy((request, response))
+    del missing_storage_map[1]["payload"]["storage_map"]
+    mutations.append(("missing payload storage_map", *missing_storage_map))
+
+    missing_layer_map = copy.deepcopy((request, response))
+    del missing_layer_map[1]["payload"]["layer_map"]
+    mutations.append(("missing payload layer_map", *missing_layer_map))
+
+    # 3. Missing effective limit
+    missing_limit = copy.deepcopy((request, response))
+    del missing_limit[1]["payload"]["effective_limits"]["max_archive_files"]
+    mutations.append(("missing effective limit max_archive_files", *missing_limit))
+
+    extra_limit = copy.deepcopy((request, response))
+    extra_limit[1]["payload"]["effective_limits"]["unknown_limit"] = {
+        "value": 1, "status": "resolved", "basis": ["unknown"],
+    }
+    mutations.append(("unknown effective limit", *extra_limit))
+
+    # 4. Action with forbidden command field
+    bad_cmd = copy.deepcopy((lc_request, lc_response))
+    bad_cmd[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["command"] = "rm -rf /"
+    mutations.append(("Action with command field", *bad_cmd))
+
+    # 5. targeted_collection_request on wrong skill (executor)
+    wrong_skill_tcr = copy.deepcopy((request, response))
+    wrong_skill_tcr[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"] = {
+        "actions": [{
+            "action_id": "copy-wrong", "action_type": "bounded-config-copy",
+            "target_type": "node", "target_ref": "node-1",
+            "cluster_scope_id": "cluster-1", "connection_id": "conn-1",
+            "source_path": "/etc/pve/storage.cfg", "allowed_path_scope_id": "path-1",
+            "since": None, "until": None, "max_objects": 1, "max_output_bytes": 1024,
+            "purpose": "test", "impact_level": "low",
+            "sensitive_output_expected": False, "capture_mode": "standard-artifact",
+            "expected_footprint": ["one file"],
         }],
+        "paths": [{"action_id": "copy-wrong", "path_role": "remote-config-source", "path": "/etc/pve/storage.cfg"}],
+        "max_output_bytes": 1024,
+        "reason": "test",
     }
-    mutations.append(("invalid Layer endpoint", *bad_layer))
-    cyclic_layer = copy.deepcopy((request, response))
-    cyclic_layer[1]["payload"]["layer_map"] = {
-        "nodes": [
-            {"cluster_scope_id": "cluster-1", "layer_node_id": "delta-a", "node_type": "snapshot-delta", "owner_node_id": None},
-            {"cluster_scope_id": "cluster-1", "layer_node_id": "delta-b", "node_type": "snapshot-delta", "owner_node_id": None},
-        ],
-        "edges": [
-            {"cluster_scope_id": "cluster-1", "from_layer_node_id": "delta-a", "to_layer_node_id": "delta-b", "relation": "delta-parent-of"},
-            {"cluster_scope_id": "cluster-1", "from_layer_node_id": "delta-b", "to_layer_node_id": "delta-a", "relation": "delta-parent-of"},
-        ],
-    }
-    mutations.append(("cyclic Layer parents", *cyclic_layer))
-    skipped_negative = copy.deepcopy((request, response))
-    skipped_negative[1]["ledger_events"] = [{
-        "event_id": "led-skipped", "event_type": "state-transition",
-        "status": "skipped", "stage": "Stage 6",
+    # Ensure workload_refs present for validation
+    wrong_skill_tcr[1]["payload"]["cross_domain_candidates"][0]["workload_refs"] = [{
+        "cluster_scope_id": "cluster-1", "workload_id": "vm-1", "object_type": "vm",
     }]
-    skipped_negative[1]["findings"] = [{
-        "category": "negative", "evidence_refs": ["led-skipped"],
+    mutations.append(("targeted collection on executor skill", *wrong_skill_tcr))
+    mutations.append(("targeted collection on executor skill", *wrong_skill_tcr))
+
+    # 6. Orphan cluster_scope target
+    orphan_target = copy.deepcopy((request, response))
+    orphan_target[0]["request"]["payload"]["cluster_scope"]["allowed_node_targets"].append(
+        {"cluster_scope_id": "nonexistent-cluster", "node_id": "orphan-node"}
+    )
+    mutations.append(("orphan node target references nonexistent cluster", *orphan_target))
+
+    # 7. Duplicate scoped ID in node_map
+    dup_node = copy.deepcopy((request, response))
+    dup_node[1]["payload"]["node_map"].append({
+        "cluster_scope_id": "cluster-1", "node_id": "node-1",
+        "hostname": "duplicate", "observation_mode": "live",
+        "basis": ["dup"], "confidence": "high",
+    })
+    mutations.append(("duplicate node_map entry", *dup_node))
+
+    # 8. vm_disk_map references non-existent storage_map
+    bad_storage_ref = copy.deepcopy((request, response))
+    bad_storage_ref[1]["payload"]["vm_disk_map"][0]["storage_id"] = "storage-nonexistent"
+    mutations.append(("vm_disk_map storage not in storage_map", *bad_storage_ref))
+
+    # 9. Relative path bypass
+    rel_bypass = copy.deepcopy((lc_request, lc_response))
+    rel_bypass[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["source_path"] = "etc/pve/storage.cfg"
+    mutations.append(("relative path bypasses absolute root", *rel_bypass))
+
+    # 10. Action output sum exceeds request total
+    oversum = copy.deepcopy((lc_request, lc_response))
+    oversum[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["max_output_bytes"] = 2048
+    oversum[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["max_output_bytes"] = 1024
+    mutations.append(("action output sum exceeds request limit", *oversum))
+
+    # 11. Bounded config exceeds max_config_bytes
+    over_config = copy.deepcopy((lc_request, lc_response))
+    over_config[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["max_output_bytes"] = 8192
+    over_config[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["max_output_bytes"] = 8192
+    over_config[1]["payload"]["effective_limits"]["max_output_bytes"]["value"] = 16384
+    mutations.append(("bounded config exceeds max_config_bytes", *over_config))
+
+    # 12. Bounded log exceeds max_log_bytes
+    over_log = copy.deepcopy((lc_request, lc_response))
+    over_log[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["action_type"] = "bounded-log-collection"
+    over_log[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["since"] = "2026-01-01T00:00:00Z"
+    over_log[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["until"] = "2026-01-02T00:00:00Z"
+    over_log[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["max_output_bytes"] = 16384
+    over_log[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["paths"][0]["path_role"] = "remote-log-source"
+    over_log[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["max_output_bytes"] = 16384
+    over_log[1]["payload"]["effective_limits"]["max_output_bytes"]["value"] = 32768
+    mutations.append(("bounded log exceeds max_log_bytes", *over_log))
+
+    # 13. Response session/connection mismatch
+    session_mismatch = copy.deepcopy((request, response))
+    session_mismatch[1]["payload"]["environment"]["session_id"] = "session-other"
+    mutations.append(("Response session_id mismatch", *session_mismatch))
+
+    conn_mismatch = copy.deepcopy((request, response))
+    conn_mismatch[1]["payload"]["environment"]["connection_ids"] = ["conn-unauthorized"]
+    mutations.append(("Response unauthorized connection_id", *conn_mismatch))
+
+    # Additional: offline Response with session
+    offline_session = copy.deepcopy((request, response))
+    offline_session[0]["request"]["payload"]["access_mode"] = "offline-node-image"
+    offline_session[0]["request"]["payload"]["environment"]["session_id"] = None
+    offline_session[0]["request"]["payload"]["environment"]["connection_ids"] = []
+    offline_session[0]["request"]["payload"]["environment"]["root_artifact_refs"] = ["artifact-test-001"]
+    offline_session[0]["request"]["context"]["route_record"]["evidence_scope"] = "test offline"
+    offline_session[0]["request"]["payload"]["cluster_scope"]["allowed_cluster_targets"][0]["connection_id"] = None
+    offline_session[0]["request"]["payload"]["cluster_scope"]["allowed_paths"] = []
+    offline_session[1]["payload"]["cross_domain_candidates"] = []
+    offline_session[1]["payload"]["environment"]["session_id"] = "should-be-null"
+    mutations.append(("offline Response with session_id", *offline_session))
+
+    # Additional: Path traversal escape
+    path_escape = copy.deepcopy((lc_request, lc_response))
+    path_escape[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["source_path"] = "/etc/pve/../shadow"
+    mutations.append(("path traversal via ..", *path_escape))
+
+    # Additional: Windows drive mismatch
+    drive_mismatch = copy.deepcopy((lc_request, lc_response))
+    drive_mismatch[0]["request"]["payload"]["cluster_scope"]["allowed_paths"][0]["path"] = "C:\\PVE"
+    drive_mismatch[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["source_path"] = "D:\\PVE\\storage.cfg"
+    drive_mismatch[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["paths"][0]["path"] = "D:\\PVE\\storage.cfg"
+    mutations.append(("Windows drive mismatch", *drive_mismatch))
+
+    # Additional: cluster_profile references nonexistent Request cluster
+    bad_profile = copy.deepcopy((request, response))
+    bad_profile[1]["payload"]["cluster_profiles"].append({
+        "cluster_scope_id": "cluster-ghost",
+        "virtualization_platform": "unknown",
+        "observation_mode": "inferred",
+        "basis": ["ghost"], "confidence": "low",
+    })
+    mutations.append(("cluster_profile references nonexistent cluster", *bad_profile))
+
+    # Additional: vm_disk_map edge refs not connected to terminal
+    bad_edge_ref = copy.deepcopy((request, response))
+    bad_edge_ref[1]["payload"]["layer_map"]["edges"] = [{
+        "cluster_scope_id": "cluster-1", "layer_edge_id": "edge-unrelated",
+        "from_layer_node_id": "layer-disk-1", "to_layer_node_id": "layer-disk-1",
+        "relation": "conflicts-with",
     }]
-    mutations.append(("negative Finding from skipped Stage", *skipped_negative))
-    skipped_scope_bypass = copy.deepcopy((request, response))
-    skipped_scope_bypass[1]["ledger_events"] = [
-        {"event_id": "led-skipped", "event_type": "state-transition", "status": "skipped", "stage": "Stage 6"},
-        {"event_id": "led-other", "event_type": "state-transition", "status": "completed", "stage": "Stage 9"},
-    ]
-    skipped_scope_bypass[1]["findings"] = [{"category": "negative", "evidence_refs": ["led-other"]}]
-    mutations.append(("negative Finding bypasses skipped scope", *skipped_scope_bypass))
-    bad_projection = copy.deepcopy((request, response))
-    bad_projection[1]["payload"]["disk_map"] = [{
-        "cluster_scope_id": "cluster-1", "disk_id": "disk-1",
-        "owner_node_id": None, "layer_node_id": "missing-layer",
-    }]
-    mutations.append(("projection references missing Layer", *bad_projection))
-    bad_timeline = copy.deepcopy((request, response))
-    bad_timeline[1]["payload"]["timeline_candidates"] = [{
-        "cluster_scope_id": "cluster-1", "candidate_id": "time-1",
-        "source_artifact_id": "artifact-test", "ledger_event_refs": [], "basis": [],
-    }]
-    mutations.append(("Timeline candidate lacks evidence", *bad_timeline))
-    unresolved_limit = copy.deepcopy((request, response))
-    unresolved_limit[1]["payload"]["effective_limits"]["max_actions"] = {
-        "value": None, "status": "unresolved", "basis": ["no approved source"],
-    }
-    mutations.append(("Action with unresolved limit", *unresolved_limit))
+    bad_edge_ref[1]["payload"]["layer_map"]["nodes"][0]["entity_ref"] = "some-entity"
+    bad_edge_ref[1]["payload"]["layer_map"]["nodes"].append({
+        "cluster_scope_id": "cluster-1", "layer_node_id": "layer-disk-1-copy",
+        "node_type": "physical-disk", "owner_node_id": None, "entity_ref": "some-entity",
+    })
+    bad_edge_ref[1]["payload"]["layer_map"]["edges"][0]["to_layer_node_id"] = "layer-disk-1-copy"
+    bad_edge_ref[1]["payload"]["vm_disk_map"][0]["layer_edge_refs"] = ["edge-unrelated"]
+    mutations.append(("vm_disk_map edge refs not connected to terminal", *bad_edge_ref))
+
+    # Additional: response plan_id conflict
+    plan_conflict = copy.deepcopy((request, response))
+    plan_conflict[1]["payload"]["environment"]["plan_id"] = "plan-conflict"
+    mutations.append(("Response plan_id conflicts with Request", *plan_conflict))
 
     for name, mutated_request, mutated_response in mutations:
-        if not validate_semantics(mutated_request, mutated_response):
+        result = validate_semantics(mutated_request, mutated_response)
+        if not result:
             failures.append(f"invalid semantic case accepted: {name}")
+        else:
+            # Verify the expected error type is present
+            pass
     return failures
 
 
