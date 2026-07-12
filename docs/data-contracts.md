@@ -158,24 +158,47 @@ routing_policy:
 
 ```json
 {
+  "schema_version": "1.0",
   "timeline_event_id": "tl-<uuid>",
   "original_timestamp": "string|null",
   "normalized_timestamp": "ISO8601|null",
-  "timezone_offset": "+08:00|null",
+  "timezone_offset": "+HH:MM|null",
   "timezone_name": "Asia/Shanghai|null",
   "timezone_assumption": "说明假设来源|null",
   "clock_skew_seconds": "integer|null",
   "time_precision": "exact|second|minute|day|unknown",
-  "source_type": "auth-log|journal|web-log|docker-log|db-transaction-log|db-snapshot|login-record|file-time|pve-log|ceph-log",
-  "source_artifact_id": "artifact-<uuid>",
+  "normalization_status": "ready|needs-review|unsupported-source",
+  "derivation": "observed|inferred",
+  "source_type": "auth-log|journal|web-log|docker-log|db-transaction-log|db-snapshot|login-record|file-time|pve-log|ceph-log|audit-log|package-log|service-log|cluster-log|other",
+  "source_subtype": "string|null",
+  "source_artifact_id": "artifact-<uuid>|null",
   "parser_id": "<parser-name>",
+  "parser_version": "string|null",
   "actor": "IP|用户|进程|null",
   "action": "动作",
   "target": "目标|null",
+  "artifact_refs": ["artifact-<uuid>"],
   "ledger_event_refs": ["led-<uuid>"],
-  "confidence": "high|medium|low"
+  "finding_refs": ["finding-<uuid>"],
+  "basis": ["string"],
+  "confidence": "high|medium|low",
+  "cluster_scope_id": "string|null"
 }
 ```
+
+约束：
+
+1. `timeline_event_id` 必须稳定且唯一；同一候选和同一规范化输入重入时复用同一 ID。
+2. `source_artifact_id` 是直接来源 Artifact；`artifact_refs` 是其他关联 Artifact，可以为空数组；`finding_refs` 可以为空数组。
+3. `derivation=observed` 时，`source_artifact_id` 必须是非空 Artifact ID，不得虚构来源。
+4. `derivation=inferred` 时，`source_artifact_id` 可以为 `null`，但 `basis` 或 `ledger_event_refs` 至少一项非空，并且必须说明推断依据。
+5. `normalization_status=ready` 时，`normalized_timestamp` 必须非空且标准化依据可回指。
+6. `normalized_timestamp=null` 时，`normalization_status` 不得为 `ready`。
+7. 原始时间不得覆盖、删除或静默改写；无法解析、不支持或时区不确定的事件仍保留。
+8. 缺少时区时不得默认 UTC、系统本地时区或 `+08:00`。
+9. 只有 Artifact 直接记录该事件时才使用 `observed`；由跨事件关系推导的事件仍为 `inferred`，即使它关联了 Artifact。
+
+Timeline Skill 产生的新正式事件必须输出完整字段。Schema 对既有 v1.0 实例保持增量兼容；显式提供 `derivation` 或 `normalization_status` 时，条件约束仍严格生效。
 
 ### ID 前缀
 
@@ -1751,19 +1774,238 @@ Request 与 Response 的共享不变量如下：
 
 ### 8.10 timeline-reconstruction
 
+Timeline Reconstruction 使用统一 Request / Response Envelope，只接收上游领域 Skill 已生成的 `timeline_candidates`，不自行重新执行领域取证或建立远程 Session。
+
+#### Request payload
+
 ```yaml
 payload:
   data_sources:
-    - type: auth-log|journal|web-log|docker-log|db-transaction-log|db-snapshot|login-record|file-time|pve-log|ceph-log
-      path: string
+    - source_id: string
+      source_type_hint: string
+      path: string|null
+      source_artifact_id: artifact-<uuid>|null
       timezone_hint:
         offset: string|null
         name: string|null
         assumption: string|null
-  time_range: object|null
-  timeline: array
+      parser_hint: string|null
+
+  timeline_candidates:
+    - candidate_id: string
+      original_timestamp: string|null
+      normalized_timestamp: ISO8601|null
+      timezone_offset: string|null
+      timezone_name: string|null
+      timezone_assumption: string|null
+      clock_skew_seconds: integer|null
+      time_precision: exact|second|minute|day|unknown
+      source_type_hint: string
+      source_artifact_id: artifact-<uuid>|null
+      parser_id: string
+      actor: string|null
+      action: string
+      target: string|null
+      ledger_event_refs:
+        - led-<uuid>
+      confidence: high|medium|low
+      normalization_status: ready|needs-review|unsupported-source
+      basis:
+        - string
+      cluster_scope_id: string|null
+      finding_refs:
+        - finding-<uuid>
+      artifact_refs:
+        - artifact-<uuid>
+
+  time_range:
+    start: ISO8601|null
+    end: ISO8601|null
+    basis:
+      - string
+```
+
+输入兼容规则：
+
+- 缺少 `basis`、`finding_refs` 或 `artifact_refs` 时使用空数组；
+- 缺少 `cluster_scope_id` 时使用 `null`；
+- 缺少 `normalization_status` 时使用 `needs-review`；
+- 缺少 `source_artifact_id` 时使用 `null`，随后按 observed / inferred 约束处理；
+- 不得根据 `normalization_status` 本身生成或推断 `basis`；
+- `basis` 只能来自 Artifact 内容、Ledger Event、parser 输出、时区证据、配置文件或可复现的多事件推断关系；
+- inferred candidate 同时缺少非空 `basis` 和非空 `ledger_event_refs` 时不得生成正式 Timeline Event，应记录 blocker；只有能够回指已存在事件时才记录 anomaly；
+- `unsupported-cluster-log` candidate 不得丢弃。
+
+#### Source hint mapping
+
+| `source_type_hint` | `source_type` | `source_subtype` |
+|---|---|---|
+| `auth-log` | `auth-log` | `null` |
+| `journal` | `journal` | `null` |
+| `web-log` | `web-log` | `null` |
+| `docker-log` | `docker-log` | `null` |
+| `db-transaction-log` | `db-transaction-log` | `null` |
+| `db-snapshot` | `db-snapshot` | `null` |
+| `login-record` | `login-record` | `null` |
+| `file-time` | `file-time` | `null` |
+| `pve-log` | `pve-log` | `null` |
+| `ceph-log` | `ceph-log` | `null` |
+| `audit-log` | `audit-log` | `null` |
+| `package-log` | `package-log` | `null` |
+| `service-log` | `service-log` | `null` |
+| `cluster-log` | `cluster-log` | `null` |
+| `vsphere-log` | `cluster-log` | `vsphere` |
+| `corosync-log` | `cluster-log` | `corosync` |
+| `zfs-log` | `cluster-log` | `zfs` |
+| `btrfs-log` | `cluster-log` | `btrfs` |
+| `vsan-log` | `cluster-log` | `vsan` |
+| `unsupported-cluster-log` | `cluster-log` | 有真实依据时为具体来源，否则 `unknown` |
+| `other` | `other` | `null` |
+| 未识别字符串 | `other` | 保留原始 hint 或 `null` |
+
+`unsupported-cluster-log` 原状态为 `unsupported-source` 且仍无法解释时间格式时继续保持该状态；已识别原始时间但时区、偏差或解析仍需确认时可改为 `needs-review`；只有得到可信 `normalized_timestamp` 时才可改为 `ready`。不得无条件把 `unsupported-source` 改为 `needs-review`。
+
+#### Normalization status
+
+| `normalization_status` | 含义 | 处理 |
+|---|---|---|
+| `ready` | 时间已可信地标准化 | 必须保留非空 `normalized_timestamp` 和可回指依据 |
+| `needs-review` | 解析、时区或偏差仍需确认 | 尝试依据化解析，失败时保留原始时间 |
+| `unsupported-source` | 当前来源或格式不支持可靠解析 | 保留原始时间，`normalized_timestamp` 可以为 `null` |
+
+`ready` 但 `normalized_timestamp=null` 时降级为 `needs-review` 并记录真实 basis 或 anomaly。缺少状态时默认 `needs-review`。状态本身不是 basis；所有时间调整、时区补充和 clock skew 修正都必须有真实依据。不得无依据假设 UTC、系统本地时区或 `+08:00`。
+
+#### Response payload
+
+```yaml
+payload:
+  data_sources:
+    - source_id: string
+      source_type_hint: string
+      path: string|null
+      source_artifact_id: artifact-<uuid>|null
+      timezone_hint:
+        offset: string|null
+        name: string|null
+        assumption: string|null
+      parser_hint: string|null
+
+  time_range:
+    start: ISO8601|null
+    end: ISO8601|null
+    basis:
+      - string
+
+  timeline:
+    - timeline_event
   event_count: integer
   source_count: integer
-  gaps: array
-  anomalies: array
+
+  gaps:
+    - gap
+
+  anomalies:
+    - anomaly
+
+  conflicts:
+    - conflict
 ```
+
+`event_count = len(timeline)`。`source_id` 必须唯一，`source_count` 等于 `data_sources` 中唯一 `source_id` 的数量。
+
+#### Conflicts
+
+```yaml
+conflicts:
+  - conflict_id: conflict-<uuid>
+    conflict_type: timestamp-conflict|timezone-conflict|clock-skew-conflict|event-detail-conflict
+    event_refs:
+      - tl-<uuid>
+    description: string
+    resolution_status: unresolved|preserved-both|preferred-with-basis
+    preferred_event_ref: tl-<uuid>|null
+    artifact_refs:
+      - artifact-<uuid>
+    ledger_event_refs:
+      - led-<uuid>
+    basis:
+      - string
+    confidence: high|medium|low
+```
+
+`event_refs` 至少引用两个存在的 Timeline Event，冲突事件全部保留。`preferred-with-basis` 时 `preferred_event_ref` 必须非空、属于 `event_refs` 且 `basis` 非空；`unresolved` 和 `preserved-both` 时 `preferred_event_ref` 为 `null`。不得通过删除事件解决冲突。
+
+#### Gaps
+
+```yaml
+gaps:
+  - gap_id: gap-<uuid>
+    gap_type: time-gap|source-gap|event-gap
+    start_time: ISO8601|null
+    end_time: ISO8601|null
+    affected_sources:
+      - string
+    description: string
+    impact: informational|potential-missing-evidence|blocks-timeline
+    artifact_refs:
+      - artifact-<uuid>
+    ledger_event_refs:
+      - led-<uuid>
+    basis:
+      - string
+    confidence: high|medium|low
+```
+
+`affected_sources` 只能引用 Request 中存在的 `data_sources.source_id`。普通日志缺失不能自动证明相关事件不存在；`blocks-timeline` 必须有明确证据说明缺口阻止核心 Timeline 建立；gap 不能替代原始事件。
+
+#### Anomalies
+
+```yaml
+anomalies:
+  - anomaly_id: anomaly-<uuid>
+    anomaly_type: duplicate-candidate|outlier|missing-timestamp|unparsable|other
+    event_refs:
+      - tl-<uuid>
+    description: string
+    severity: low|medium|high
+    artifact_refs:
+      - artifact-<uuid>
+    ledger_event_refs:
+      - led-<uuid>
+    basis:
+      - string
+    confidence: high|medium|low
+```
+
+`event_refs` 必须引用已存在 Timeline Event；`duplicate-candidate` 至少引用两个事件。疑似重复、缺失时间和不可解析时间的事件全部保留，anomaly 不能作为删除理由。无法构造正式 Event 的候选只有在 anomaly 能引用已存在关联 Event 时才写 anomaly，否则写 blocker。
+
+#### Stable merge
+
+1. `normalized_timestamp` 非空的事件按时间升序排列。
+2. 时间相同的事件保持稳定输入顺序。
+3. `normalized_timestamp=null` 的事件放在末尾。
+4. 不进行破坏性去重。
+5. 疑似重复、冲突、unsupported source、无法解析时间和时区不确定的事件全部保留。
+6. 不静默覆盖原始时间，不将 inferred 伪装成 observed。
+
+#### Stage 0-6
+
+| Stage | 名称 | 主要输出 |
+|---|---|---|
+| 0 | Input and Scope Validation | 可处理候选、blocker、引用缺失记录、来源清单 |
+| 1 | Source Mapping | 已映射候选、unsupported source 说明、映射 basis |
+| 2 | Time Normalization | 标准化候选、状态、时间异常及时区/偏差依据 |
+| 3 | Conflict and Gap Detection | `conflicts`、`gaps` |
+| 4 | Timeline Event Construction | 未排序 Timeline Event、无法构造事件的 anomaly 或 blocker |
+| 5 | Stable Merge and Anomaly Detection | 排序后 `timeline`、`anomalies`、`event_count` |
+| 6 | Response and Handoff | 完整 Response、必要 Handoff、route 和 execution gate 状态 |
+
+#### Evidence and handoff rules
+
+- 每个 observed Event 必须有直接来源 Artifact；每个 inferred Event 必须有非空 basis 或 Ledger Event；
+- Artifact、Ledger Event 和 Finding 引用必须来自 Request、上游输出或本任务真实生成物并可回查；
+- 时间修正必须保留依据，原始 Artifact 保持只读，negative Finding 必须有证据回指；
+- 普通解析失败、单条时区不确定和单个 unsupported source 不自动触发 execution gate；
+- Timeline Skill 不重新执行领域取证、不自行建立远程 Session；
+- 需要额外采集或重新分析时，在 `route_record.handoffs` 创建证据化 Handoff；完成后把 Timeline 交给 `server-answer-gate`；
+- 输出限制达到时停止扩展，保留已完成部分，并以 `partial` 或 `blocked` 返回可恢复 Handoff。

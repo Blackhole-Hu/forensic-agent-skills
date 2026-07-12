@@ -5,7 +5,7 @@
   "description": "Phase 2 时间线事件格式",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "timeline_event_id", "source_type", "source_artifact_id", "parser_id", "action", "confidence", "time_precision", "ledger_event_refs"],
+  "required": ["schema_version", "timeline_event_id", "original_timestamp", "normalized_timestamp", "source_type", "source_artifact_id", "parser_id", "action", "confidence", "time_precision", "ledger_event_refs"],
   "properties": {
     "schema_version": { "type": "string", "const": "1.0" },
     "timeline_event_id": {
@@ -28,16 +28,26 @@
       "type": "string",
       "enum": ["exact", "second", "minute", "day", "unknown"]
     },
+    "normalization_status": {
+      "type": "string",
+      "enum": ["ready", "needs-review", "unsupported-source"]
+    },
+    "derivation": {
+      "type": "string",
+      "enum": ["observed", "inferred"]
+    },
     "source_type": {
       "type": "string",
       "enum": [
         "auth-log", "journal", "web-log", "docker-log",
         "db-transaction-log", "db-snapshot", "login-record",
-        "file-time", "pve-log", "ceph-log"
+        "file-time", "pve-log", "ceph-log", "audit-log",
+        "package-log", "service-log", "cluster-log", "other"
       ]
     },
+    "source_subtype": { "type": ["string", "null"] },
     "source_artifact_id": {
-      "type": "string",
+      "type": ["string", "null"],
       "pattern": "^artifact-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     },
     "parser_id": { "type": "string", "minLength": 1 },
@@ -45,30 +55,115 @@
     "actor": { "type": ["string", "null"] },
     "action": { "type": "string", "minLength": 1 },
     "target": { "type": ["string", "null"] },
+    "artifact_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^artifact-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      }
+    },
     "ledger_event_refs": {
       "type": "array",
-      "minItems": 1,
       "items": {
         "type": "string",
         "pattern": "^led-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
       }
     },
+    "finding_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^finding-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      }
+    },
+    "basis": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
     "confidence": {
       "type": "string",
       "enum": ["high", "medium", "low"]
-    }
+    },
+    "cluster_scope_id": { "type": ["string", "null"] }
   },
-  "anyOf": [
+  "allOf": [
     {
-      "required": ["original_timestamp"],
-      "properties": {
-        "original_timestamp": { "type": "string", "minLength": 1 }
+      "if": {
+        "anyOf": [
+          { "required": ["derivation"] },
+          { "required": ["normalization_status"] }
+        ]
+      },
+      "then": {
+        "required": [
+          "timezone_offset", "timezone_name", "timezone_assumption",
+          "clock_skew_seconds", "normalization_status", "derivation",
+          "source_subtype", "parser_version", "actor", "target",
+          "artifact_refs", "finding_refs", "basis", "cluster_scope_id"
+        ]
       }
     },
     {
-      "required": ["normalized_timestamp"],
-      "properties": {
-        "normalized_timestamp": { "type": "string", "minLength": 1 }
+      "if": {
+        "required": ["derivation"],
+        "properties": { "derivation": { "const": "observed" } }
+      },
+      "then": {
+        "required": ["source_artifact_id"],
+        "properties": {
+          "source_artifact_id": {
+            "type": "string",
+            "pattern": "^artifact-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["derivation"],
+        "properties": { "derivation": { "const": "inferred" } }
+      },
+      "then": {
+        "anyOf": [
+          {
+            "required": ["basis"],
+            "properties": {
+              "basis": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "string", "minLength": 1 }
+              }
+            }
+          },
+          {
+            "required": ["ledger_event_refs"],
+            "properties": { "ledger_event_refs": { "type": "array", "minItems": 1 } }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": ["normalization_status"],
+        "properties": { "normalization_status": { "const": "ready" } }
+      },
+      "then": {
+        "required": ["normalized_timestamp"],
+        "properties": {
+          "normalized_timestamp": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["normalized_timestamp"],
+        "properties": { "normalized_timestamp": { "type": "null" } }
+      },
+      "then": {
+        "not": {
+          "required": ["normalization_status"],
+          "properties": { "normalization_status": { "const": "ready" } }
+        }
       }
     }
   ]
