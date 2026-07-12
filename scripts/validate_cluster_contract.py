@@ -229,7 +229,35 @@ TARGETED_COLLECTION_PATH_FIELDS = {"action_id", "path_role", "path"}
 REQUIRED_RESPONSE_ENV_FIELDS = {
     "origin_type", "plan_id", "session_id", "connection_ids",
     "root_artifact_refs", "collection_artifact_refs",
+    "artifact_refs", "ledger_event_refs", "basis", "confidence",
 }
+
+REQUIRED_REQUEST_ENV_FIELDS = {
+    "origin_type", "plan_id", "session_id", "connection_ids",
+    "root_artifact_refs", "collection_artifact_refs",
+}
+
+REQUIRED_MATERIAL_INFO_FIELDS = {
+    "artifact_refs", "material_type", "triage_notes", "size_summary",
+}
+
+REQUIRED_QUORUM_FIELDS = {
+    "cluster_scope_id", "quorum_finding_id", "quorum_state",
+    "expected_votes", "observed_votes", "member_node_ids",
+    "missing_node_ids", "split_brain_suspected", "observation_mode",
+    "artifact_refs", "ledger_event_refs", "basis", "confidence",
+}
+
+REQUIRED_STORAGE_HEALTH_FIELDS = {
+    "cluster_scope_id", "health_finding_id", "target_type", "target_ref",
+    "health_state", "missing_component_refs", "indicators",
+    "observation_mode", "artifact_refs", "ledger_event_refs",
+    "basis", "confidence",
+}
+
+OBSERVATION_MODE_ENUM = {"live", "configured", "metadata-snapshot", "inferred"}
+CONFIDENCE_ENUM = {"high", "medium", "low"}
+ORIGIN_TYPE_ENUM = {"direct-remote", "rebuilt-runtime", "offline-artifact"}
 
 CROSS_DOMAIN_SKILL_ENUM = {
     "server-rebuild-planner", "server-rebuild-executor",
@@ -547,6 +575,27 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
     environment = payload.get("environment", {})
     mode = payload.get("access_mode")
     context = req.get("context", {})
+
+    # Request material_info structure
+    material_info = req.get("material_info", {})
+    errors.extend(_check_required_fields(material_info, REQUIRED_MATERIAL_INFO_FIELDS, "Request material_info"))
+    if not isinstance(material_info.get("artifact_refs"), list):
+        errors.append("Request material_info.artifact_refs must be array")
+    if not isinstance(material_info.get("triage_notes"), list):
+        errors.append("Request material_info.triage_notes must be array")
+
+    # Request environment structure
+    errors.extend(_check_required_fields(environment, REQUIRED_REQUEST_ENV_FIELDS, "Request environment"))
+    origin_type = environment.get("origin_type")
+    if origin_type not in ORIGIN_TYPE_ENUM:
+        errors.append(f"Request environment unknown origin_type: {origin_type}")
+    if not isinstance(environment.get("connection_ids"), list):
+        errors.append("Request environment.connection_ids must be array")
+    if not isinstance(environment.get("root_artifact_refs"), list):
+        errors.append("Request environment.root_artifact_refs must be array")
+    if not isinstance(environment.get("collection_artifact_refs"), list):
+        errors.append("Request environment.collection_artifact_refs must be array")
+
     route = context.get("route_record", {})
     route_steps = {step.get("route_step_id"): step for step in route.get("route_plan", [])}
     if context.get("current_step_id") not in route_steps:
@@ -740,26 +789,50 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
         errors.extend(_check_required_fields(rec, REQUIRED_NODE_MAP_FIELDS, "node_map"))
         errors.extend(_check_non_empty_id(rec, "cluster_scope_id", "node_map"))
         errors.extend(_check_non_empty_id(rec, "node_id", "node_map"))
+        if rec.get("observation_mode") not in OBSERVATION_MODE_ENUM:
+            errors.append(f"node_map unknown observation_mode: {rec.get('observation_mode')}")
+        if rec.get("confidence") not in CONFIDENCE_ENUM:
+            errors.append(f"node_map unknown confidence: {rec.get('confidence')}")
     for rec in response_payload.get("disk_map", []):
         errors.extend(_check_required_fields(rec, REQUIRED_DISK_MAP_FIELDS, "disk_map"))
         errors.extend(_check_non_empty_id(rec, "cluster_scope_id", "disk_map"))
         errors.extend(_check_non_empty_id(rec, "disk_id", "disk_map"))
+        if rec.get("observation_mode") not in OBSERVATION_MODE_ENUM:
+            errors.append(f"disk_map unknown observation_mode: {rec.get('observation_mode')}")
+        if rec.get("confidence") not in CONFIDENCE_ENUM:
+            errors.append(f"disk_map unknown confidence: {rec.get('confidence')}")
     for rec in response_payload.get("storage_map", []):
         errors.extend(_check_required_fields(rec, REQUIRED_STORAGE_MAP_FIELDS, "storage_map"))
         errors.extend(_check_non_empty_id(rec, "cluster_scope_id", "storage_map"))
         errors.extend(_check_non_empty_id(rec, "storage_id", "storage_map"))
+        if rec.get("observation_mode") not in OBSERVATION_MODE_ENUM:
+            errors.append(f"storage_map unknown observation_mode: {rec.get('observation_mode')}")
+        if rec.get("confidence") not in CONFIDENCE_ENUM:
+            errors.append(f"storage_map unknown confidence: {rec.get('confidence')}")
     for rec in response_payload.get("vm_map", []):
         errors.extend(_check_required_fields(rec, REQUIRED_VM_MAP_FIELDS, "vm_map"))
         errors.extend(_check_non_empty_id(rec, "cluster_scope_id", "vm_map"))
         errors.extend(_check_non_empty_id(rec, "workload_id", "vm_map"))
+        if rec.get("observation_mode") not in OBSERVATION_MODE_ENUM:
+            errors.append(f"vm_map unknown observation_mode: {rec.get('observation_mode')}")
+        if rec.get("confidence") not in CONFIDENCE_ENUM:
+            errors.append(f"vm_map unknown confidence: {rec.get('confidence')}")
     for rec in response_payload.get("vm_disk_map", []):
         errors.extend(_check_required_fields(rec, REQUIRED_VM_DISK_MAP_FIELDS, "vm_disk_map"))
         errors.extend(_check_non_empty_id(rec, "cluster_scope_id", "vm_disk_map"))
         errors.extend(_check_non_empty_id(rec, "vm_disk_mapping_id", "vm_disk_map"))
+        if rec.get("observation_mode") not in OBSERVATION_MODE_ENUM:
+            errors.append(f"vm_disk_map unknown observation_mode: {rec.get('observation_mode')}")
+        if rec.get("confidence") not in CONFIDENCE_ENUM:
+            errors.append(f"vm_disk_map unknown confidence: {rec.get('confidence')}")
     for rec in response_payload.get("snapshot_map", []):
         errors.extend(_check_required_fields(rec, REQUIRED_SNAPSHOT_MAP_FIELDS, "snapshot_map"))
         errors.extend(_check_non_empty_id(rec, "cluster_scope_id", "snapshot_map"))
         errors.extend(_check_non_empty_id(rec, "snapshot_id", "snapshot_map"))
+        if rec.get("observation_mode") not in OBSERVATION_MODE_ENUM:
+            errors.append(f"snapshot_map unknown observation_mode: {rec.get('observation_mode')}")
+        if rec.get("confidence") not in CONFIDENCE_ENUM:
+            errors.append(f"snapshot_map unknown confidence: {rec.get('confidence')}")
     for rec in response_payload.get("image_candidates", []):
         errors.extend(_check_required_fields(rec, REQUIRED_IMAGE_CANDIDATE_FIELDS, "image_candidate"))
         errors.extend(_check_non_empty_id(rec, "cluster_scope_id", "image_candidate"))
@@ -774,11 +847,27 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
         errors.extend(_check_required_fields(rec, REQUIRED_BLOCKER_FIELDS, "blocker"))
         errors.extend(_check_non_empty_id(rec, "blocker_id", "blocker"))
     for rec in response_payload.get("quorum_findings", []):
+        errors.extend(_check_required_fields(rec, REQUIRED_QUORUM_FIELDS, "quorum_finding"))
         errors.extend(_check_non_empty_id(rec, "cluster_scope_id", "quorum_finding"))
         errors.extend(_check_non_empty_id(rec, "quorum_finding_id", "quorum_finding"))
+        if rec.get("quorum_state") not in {"quorate", "not-quorate", "unknown", "not-applicable"}:
+            errors.append(f"quorum_finding unknown quorum_state: {rec.get('quorum_state')}")
+        if rec.get("observation_mode") not in OBSERVATION_MODE_ENUM:
+            errors.append(f"quorum_finding unknown observation_mode: {rec.get('observation_mode')}")
+        if rec.get("confidence") not in CONFIDENCE_ENUM:
+            errors.append(f"quorum_finding unknown confidence: {rec.get('confidence')}")
     for rec in response_payload.get("storage_health_findings", []):
+        errors.extend(_check_required_fields(rec, REQUIRED_STORAGE_HEALTH_FIELDS, "storage_health_finding"))
         errors.extend(_check_non_empty_id(rec, "cluster_scope_id", "storage_health_finding"))
         errors.extend(_check_non_empty_id(rec, "health_finding_id", "storage_health_finding"))
+        if rec.get("target_type") not in {"mdraid", "lvm", "zfs", "btrfs", "ceph", "vsan", "shared-storage", "other"}:
+            errors.append(f"storage_health_finding unknown target_type: {rec.get('target_type')}")
+        if rec.get("health_state") not in {"healthy", "degraded", "failed", "incomplete", "unknown"}:
+            errors.append(f"storage_health_finding unknown health_state: {rec.get('health_state')}")
+        if rec.get("observation_mode") not in OBSERVATION_MODE_ENUM:
+            errors.append(f"storage_health_finding unknown observation_mode: {rec.get('observation_mode')}")
+        if rec.get("confidence") not in CONFIDENCE_ENUM:
+            errors.append(f"storage_health_finding unknown confidence: {rec.get('confidence')}")
 
     # Layer map sub-record required fields + structure + enums
     layer_map = response_payload.get("layer_map", {})
@@ -831,8 +920,11 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
         limit_actual = set(limit.keys())
         if limit_actual != EFFECTIVE_LIMIT_FIELDS:
             missing_lf = EFFECTIVE_LIMIT_FIELDS - limit_actual
+            extra_lf = limit_actual - EFFECTIVE_LIMIT_FIELDS
             if missing_lf:
                 errors.append(f"effective limit {limit_name} missing fields: {sorted(missing_lf)}")
+            if extra_lf:
+                errors.append(f"effective limit {limit_name} has extra fields: {sorted(extra_lf)}")
         status = limit.get("status")
         value = limit.get("value")
         if not limit.get("basis"):
@@ -1069,10 +1161,52 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
 
     for snapshot in response_payload.get("snapshot_map", []):
         cluster_id = snapshot.get("cluster_scope_id")
-        if any((cluster_id, ref) not in nodes for ref in snapshot.get("layer_node_refs", [])):
+        snapshot_node_refs = set(snapshot.get("layer_node_refs", []))
+        if any((cluster_id, ref) not in nodes for ref in snapshot_node_refs):
             errors.append("snapshot_map references a missing scoped Layer Node")
-        if any((cluster_id, ref) not in layer_edge_ids for ref in snapshot.get("backing_edge_refs", [])):
-            errors.append("snapshot_map references a missing scoped Layer Edge")
+        # backing_edge_refs must be PARENT_RELATIONS edges in same cluster connecting snapshot nodes
+        owner_ref = snapshot.get("owner_ref")
+        owner_layer_nodes: set[str] = set()
+        owner_type = snapshot.get("owner_type")
+        if owner_type in WORKLOAD_TYPES:
+            wk = vm_map.get((cluster_id, owner_ref))
+            if wk:
+                for dm in response_payload.get("vm_disk_map", []):
+                    if dm.get("cluster_scope_id") == cluster_id and dm.get("workload_id") == owner_ref:
+                        t = dm.get("terminal_layer_node_id")
+                        if t:
+                            owner_layer_nodes.add(t)
+        elif owner_type == "vm-disk":
+            dm = vm_disk_map.get((cluster_id, owner_ref))
+            if dm:
+                t = dm.get("terminal_layer_node_id")
+                if t:
+                    owner_layer_nodes.add(t)
+        all_snapshot_nodes = snapshot_node_refs | owner_layer_nodes
+        for ref in snapshot.get("backing_edge_refs", []):
+            if (cluster_id, ref) not in layer_edge_ids:
+                errors.append("snapshot_map references a missing scoped Layer Edge")
+            else:
+                edge_obj = None
+                for e in response_payload.get("layer_map", {}).get("edges", []):
+                    if e.get("cluster_scope_id") == cluster_id and e.get("layer_edge_id") == ref:
+                        edge_obj = e
+                        break
+                if edge_obj:
+                    if edge_obj.get("relation") not in PARENT_RELATIONS:
+                        errors.append(f"snapshot backing_edge_ref {ref} has non-backing relation: {edge_obj.get('relation')}")
+                    e_from = edge_obj.get("from_layer_node_id")
+                    e_to = edge_obj.get("to_layer_node_id")
+                    if e_from not in all_snapshot_nodes and e_to not in all_snapshot_nodes:
+                        errors.append(f"snapshot backing_edge_ref {ref} is unrelated to snapshot nodes")
+        # parent_snapshot_id must reference existing snapshot in same cluster
+        parent_snap = snapshot.get("parent_snapshot_id")
+        if parent_snap is not None:
+            if not any(
+                s.get("cluster_scope_id") == cluster_id and s.get("snapshot_id") == parent_snap
+                for s in response_payload.get("snapshot_map", [])
+            ):
+                errors.append(f"snapshot parent_snapshot_id {parent_snap} references missing snapshot")
 
     actions: list[dict[str, Any]] = []
     collection_requests: list[dict[str, Any]] = []
@@ -1087,8 +1221,22 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
         errors.extend(_check_non_empty_id(candidate, "cluster_scope_id", "cross_domain_candidate"))
         if not candidate.get("basis"):
             errors.append("cross_domain_candidate basis must be non-empty")
-        if candidate.get("confidence") not in {"high", "medium", "low"}:
+        if candidate.get("confidence") not in CONFIDENCE_ENUM:
             errors.append("cross_domain_candidate confidence must be high|medium|low")
+
+        # Cross-domain connection scope validation
+        cdc_conn_ids = candidate.get("connection_ids", [])
+        if not isinstance(cdc_conn_ids, list):
+            errors.append("cross_domain_candidate connection_ids must be array")
+        else:
+            if mode in OFFLINE_MODES and cdc_conn_ids:
+                errors.append("offline cross_domain_candidate connection_ids must be empty")
+            if mode in LIVE_MODES:
+                unauthorized_cdc = set(cdc_conn_ids) - connection_ids
+                if unauthorized_cdc:
+                    errors.append(f"cross_domain_candidate has unauthorized connection_ids: {unauthorized_cdc}")
+            if candidate.get("targeted_collection_request") is not None and not cdc_conn_ids:
+                errors.append("cross_domain_candidate with targeted_collection_request requires non-empty connection_ids")
 
         for workload_ref in candidate.get("workload_refs", []):
             key = (workload_ref.get("cluster_scope_id"), workload_ref.get("workload_id"))
@@ -1134,6 +1282,10 @@ def validate_semantics(request: dict[str, Any], response: dict[str, Any]) -> lis
             all_action_ids.extend(action_ids)
             for action in request_value.get("actions", []):
                 errors.extend(_validate_action_fields(action))
+                # Action connection_id must belong to both candidate and Request connection_ids
+                action_cid = action.get("connection_id")
+                if action_cid not in cdc_conn_ids:
+                    errors.append(f"Action connection_id {action_cid} not in candidate connection_ids")
             # Path records
             for path_record in request_value.get("paths", []):
                 path_keys = set(path_record.keys())
@@ -1448,6 +1600,8 @@ def minimal_case() -> tuple[dict[str, Any], dict[str, Any]]:
             "material_info": {
                 "artifact_refs": ["artifact-test-001"],
                 "material_type": "server-disk-image",
+                "triage_notes": ["test case"],
+                "size_summary": {"total_bytes": 1024, "file_count": 1, "largest_file_bytes": 1024},
             },
             "objective": "identify cluster topology and VM mapping",
             "objective_status": "explicit",
@@ -1469,12 +1623,13 @@ def minimal_case() -> tuple[dict[str, Any], dict[str, Any]]:
             },
             "payload": {
                 "access_mode": "live-cluster",
-            "environment": {
-                "plan_id": "plan-1", "session_id": "session-1",
-                "connection_ids": ["conn-1"],
-                "origin_type": "direct-remote",
-                "root_artifact_refs": [], "collection_artifact_refs": [],
-            },
+                "environment": {
+                    "plan_id": "plan-1", "session_id": "session-1",
+                    "connection_ids": ["conn-1"],
+                    "origin_type": "direct-remote",
+                    "root_artifact_refs": [], "collection_artifact_refs": [],
+                    "artifact_refs": [],
+                },
                 "cluster_scope": {
                     "analysis_scope_id": "scope-1",
                     "platform_hints": ["proxmox-ve"],
@@ -1547,6 +1702,8 @@ def minimal_case() -> tuple[dict[str, Any], dict[str, Any]]:
                 "connection_ids": ["conn-1"],
                 "origin_type": "direct-remote",
                 "root_artifact_refs": [], "collection_artifact_refs": [],
+                "artifact_refs": [], "ledger_event_refs": [],
+                "basis": ["test environment"], "confidence": "high",
             },
             "access_mode": "live-cluster",
             "cluster_profiles": [{
@@ -1972,8 +2129,14 @@ def run_self_tests() -> list[str]:
     m = copy.deepcopy((request, response))
     m[1]["payload"]["cluster_profiles"].append({
         "cluster_scope_id": "cluster-ghost",
+        "cluster_id": None, "cluster_name": None,
         "virtualization_platform": "unknown",
+        "platform_version": None,
+        "control_plane_components": [], "distributed_storage_components": [],
+        "configured_node_count": None, "observed_node_count": None,
         "observation_mode": "inferred",
+        "observed_at": None,
+        "artifact_refs": [], "ledger_event_refs": [],
         "basis": ["ghost"], "confidence": "low",
     })
     mutations.append(("cluster_profile references nonexistent cluster", *m, ["non-existent Request cluster_scope_id"]))
@@ -2138,6 +2301,68 @@ def run_self_tests() -> list[str]:
         },
     }]
     mutations.append(("Cluster Action unapproved target_ref", *m, ["target_ref is outside"]))
+
+    # effective limit extra field (command)
+    m = copy.deepcopy((request, response))
+    m[1]["payload"]["effective_limits"]["max_actions"]["command"] = "rm -rf /"
+    mutations.append(("effective limit extra field command", *m, ["extra fields"]))
+
+    # Candidate unauthorized connection_id
+    m = copy.deepcopy((lc_request, lc_response))
+    m[1]["payload"]["cross_domain_candidates"][0]["connection_ids"] = ["conn-ghost"]
+    m[1]["payload"]["cross_domain_candidates"][0]["targeted_collection_request"]["actions"][0]["connection_id"] = "conn-ghost"
+    mutations.append(("Candidate unauthorized connection_id", *m, ["unauthorized connection"]))
+
+    # node_map unknown observation_mode
+    m = copy.deepcopy((request, response))
+    m[1]["payload"]["node_map"][0]["observation_mode"] = "bogus"
+    mutations.append(("node_map unknown observation_mode", *m, ["node_map unknown observation_mode"]))
+
+    # Snapshot backing unrelated partitions-into edge
+    m = copy.deepcopy((request, response))
+    m[1]["payload"]["layer_map"]["edges"] = [{
+        "cluster_scope_id": "cluster-1", "layer_edge_id": "edge-part",
+        "from_layer_node_id": "layer-disk-1", "to_layer_node_id": "layer-disk-1",
+        "relation": "partitions-into", "observation_mode": "inferred",
+        "artifact_refs": [], "ledger_event_refs": [], "basis": ["test"], "confidence": "low",
+    }]
+    m[1]["payload"]["layer_map"]["nodes"].append({
+        "cluster_scope_id": "cluster-1", "layer_node_id": "layer-disk-1-part",
+        "node_type": "partition", "entity_ref": None,
+        "owner_node_id": None, "name": None, "location": None,
+        "size_bytes": None, "availability": "present",
+        "identity_status": "unverified", "observation_mode": "inferred",
+        "observed_at": None, "artifact_refs": [], "ledger_event_refs": [],
+        "basis": ["test"], "confidence": "low",
+    })
+    m[1]["payload"]["layer_map"]["edges"][0]["to_layer_node_id"] = "layer-disk-1-part"
+    m[1]["payload"]["snapshot_map"] = [{
+        "cluster_scope_id": "cluster-1", "snapshot_id": "snap-1",
+        "owner_type": "vm", "owner_ref": "vm-1",
+        "parent_snapshot_id": None, "snapshot_type": "pve-snapshot",
+        "created_at": None, "state": "configured",
+        "layer_node_refs": ["layer-vm"],
+        "backing_edge_refs": ["edge-part"],
+        "observation_mode": "inferred",
+        "artifact_refs": [], "ledger_event_refs": [],
+        "basis": ["test"], "confidence": "low",
+    }]
+    mutations.append(("Snapshot backing unrelated partitions-into edge", *m, ["non-backing relation"]))
+
+    # Snapshot parent_snapshot_id references missing snapshot
+    m = copy.deepcopy((request, response))
+    m[1]["payload"]["snapshot_map"] = [{
+        "cluster_scope_id": "cluster-1", "snapshot_id": "snap-1",
+        "owner_type": "vm", "owner_ref": "vm-1",
+        "parent_snapshot_id": "snap-ghost", "snapshot_type": "pve-snapshot",
+        "created_at": None, "state": "configured",
+        "layer_node_refs": [],
+        "backing_edge_refs": [],
+        "observation_mode": "inferred",
+        "artifact_refs": [], "ledger_event_refs": [],
+        "basis": ["test"], "confidence": "low",
+    }]
+    mutations.append(("Snapshot parent_snapshot_id references missing snapshot", *m, ["references missing snapshot"]))
 
     for name, mutated_request, mutated_response, expected_substrings in mutations:
         result = validate_semantics(mutated_request, mutated_response)
