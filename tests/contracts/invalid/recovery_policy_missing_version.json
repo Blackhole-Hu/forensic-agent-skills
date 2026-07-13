@@ -1,0 +1,11 @@
+{
+  "operations": {
+    "artifact_export": {
+      "required_capability": "ewf-export",
+      "error_classes": {
+        "tool_failure": {"auto_retry": true, "max_attempts": 2, "tool_candidates": [{"tool": "ewfexport", "operation": "export"}], "action": "retry"}
+      }
+    }
+  },
+  "default": {"auto_retry": false, "action": "replan"}
+}

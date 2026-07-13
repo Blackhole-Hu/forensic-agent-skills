@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "timeline_event_id": "tl-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "original_timestamp": "Jul 10 12:00:00",
+  "normalized_timestamp": "2026-07-10T12:00:00Z",
+  "timezone_offset": "+08:00",
+  "timezone_name": "Asia/Shanghai",
+  "timezone_assumption": "inferred from system locale",
+  "clock_skew_seconds": null,
+  "time_precision": "second",
+  "source_type": "auth-log",
+  "source_artifact_id": "artifact-11111111-2222-3333-4444-555555555555",
+  "parser_id": "auth-log-parser",
+  "parser_version": "1.0",
+  "actor": "192.168.1.100",
+  "action": "SSH login succeeded",
+  "target": "root",
+  "ledger_event_refs": ["led-a1b2c3d4-e5f6-7890-abcd-ef1234567890"],
+  "confidence": "high"
+}

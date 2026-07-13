@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0",
+  "artifact_id": "artifact-11111111-2222-3333-4444-555555555555",
+  "path": "/evidence/test.E01",
+  "hash": {
+    "algorithm": "sha256",
+    "value": null,
+    "status": "verified"
+  },
+  "preservation_status": "original-reference"
+}

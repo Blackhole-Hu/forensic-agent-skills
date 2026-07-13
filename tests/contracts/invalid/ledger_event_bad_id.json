@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "event_id": "invalid-uuid-format",
+  "event_type": "command",
+  "timestamp": "2026-07-10T12:00:00Z",
+  "skill": "test-skill",
+  "status": "completed",
+  "command": null,
+  "started_at": null
+}

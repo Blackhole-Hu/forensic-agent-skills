@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "route_id": "route-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  "triggered_skill": "server-forensics-router",
+  "route_basis": ["E01 disk image detected", "Linux filesystem signature"],
+  "mode_decision": "rebuild-and-connect",
+  "route_status": "active",
+  "route_plan": [
+    {
+      "route_step_id": "step-11111111-2222-3333-4444-555555555555",
+      "skill": "server-rebuild-planner",
+      "dependency_step_ids": [],
+      "parallel_group": null,
+      "status": "pending"
+    },
+    {
+      "route_step_id": "step-22222222-3333-4444-5555-666666666666",
+      "skill": "server-rebuild-executor",
+      "dependency_step_ids": ["step-11111111-2222-3333-4444-555555555555"],
+      "parallel_group": null,
+      "status": "pending"
+    }
+  ],
+  "handoffs": [],
+  "evidence_scope": "E01 image at /evidence/disk.E01",
+  "risk_level": "medium",
+  "next_action": "invoke server-rebuild-planner",
+  "execution_gate": {
+    "required": false,
+    "reason": null,
+    "policy_ref": null
+  },
+  "routing_policy": {
+    "max_hops": 16
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "timeline_event_id": "tl-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "source_type": "auth-log",
+  "source_artifact_id": "artifact-11111111-2222-3333-4444-555555555555",
+  "parser_id": "auth-log-parser",
+  "confidence": "high",
+  "action": "login",
+  "time_precision": "exact",
+  "ledger_event_refs": ["led-a1b2c3d4-e5f6-7890-abcd-ef1234567890"],
+  "timezone_offset": "+29:59"
+}

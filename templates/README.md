@@ -1,15 +1,55 @@
 # Templates
 
-Starter templates for skills, evidence tracking, investigation logs, and reports.
+Phase 2 数据契约和模板文件。
 
-## Contents
+## Schema 文件
 
-| Template | Purpose |
-|----------|---------|
-| `skill-template.md` | SKILL.md starter structure |
-| `evidence-ledger.md` | Evidence tracking record (Markdown — human review primary view) |
-| `evidence-ledger.jsonl` | Evidence tracking log (JSONL — machine validation log) |
-| `investigation-log.md` | Investigation session log |
-| `forensic-report.md` | Final forensic report |
-| `wp-template.md` | Competition WriteUp template |
-| `answer-gate-checklist.md` | Pre-submission validation checklist |
+| 文件 | 说明 | $id |
+|------|------|-----|
+| `ledger-event.schema.json` | 统一证据事件格式 | `urn:forensic-agent-skills:schema:ledger-event:1.0` |
+| `route-record.schema.json` | 统一路由记录格式 | `urn:forensic-agent-skills:schema:route-record:1.0` |
+| `request-envelope.schema.json` | 统一请求信封格式 | `urn:forensic-agent-skills:schema:request-envelope:1.0` |
+| `response-envelope.schema.json` | 统一响应信封格式 | `urn:forensic-agent-skills:schema:response-envelope:1.0` |
+| `timeline-event.schema.json` | 时间线事件格式 | `urn:forensic-agent-skills:schema:timeline-event:1.0` |
+| `rebuild-status.schema.json` | 重建执行状态格式 | `urn:forensic-agent-skills:schema:rebuild-status:1.0` |
+| `artifact-record.schema.json` | 制品记录格式 | `urn:forensic-agent-skills:schema:artifact-record:1.0` |
+| `finding-record.schema.json` | 发现记录格式 | `urn:forensic-agent-skills:schema:finding-record:1.0` |
+| `recovery-policy.schema.json` | 恢复策略格式 | `urn:forensic-agent-skills:schema:recovery-policy:1.0` |
+
+## 模板文件
+
+| 文件 | 说明 |
+|------|------|
+| `investigation-summary.md` | Investigation Summary 渲染规则 |
+| `route-record.md` | Route Record 字段说明 |
+
+## ID 前缀规范
+
+| 类型 | 前缀 | 示例 |
+|------|------|------|
+| Ledger Event | `led-` | `led-a1b2c3d4-e5f6-7890-abcd-ef1234567890` |
+| Timeline Event | `tl-` | `tl-a1b2c3d4-e5f6-7890-abcd-ef1234567890` |
+| Artifact | `artifact-` | `artifact-a1b2c3d4-e5f6-7890-abcd-ef1234567890` |
+| Route | `route-` | `route-a1b2c3d4-e5f6-7890-abcd-ef1234567890` |
+| Handoff | `hof-` | `hof-a1b2c3d4-e5f6-7890-abcd-ef1234567890` |
+| Finding | `finding-` | `finding-a1b2c3d4-e5f6-7890-abcd-ef1234567890` |
+| Route Step | `step-` | `step-a1b2c3d4-e5f6-7890-abcd-ef1234567890` |
+
+## 验证
+
+运行契约验证脚本：
+
+```bash
+python scripts/validate_contracts.py
+```
+
+测试 fixtures 位于 `tests/contracts/valid/` 和 `tests/contracts/invalid/`。
+
+## 使用方式
+
+1. Skill 执行时产生 Ledger Event，由 `evidence-ledger` 持久化
+2. Skill 输出遵循 Response Envelope 格式
+3. 路由信息仅在 Route Record 中维护
+4. Investigation Summary 中的 Route Plan 从 Route Record 渲染（单一事实来源）
+5. Timeline Event 由 `timeline-reconstruction` 产生，引用 Ledger Event
+6. 所有实例必须包含 `schema_version: "1.0"`

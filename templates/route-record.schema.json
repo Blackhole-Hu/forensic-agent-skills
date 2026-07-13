@@ -1,0 +1,155 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:forensic-agent-skills:schema:route-record:1.0",
+  "title": "Route Record",
+  "description": "Phase 2 统一路由记录格式",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "route_id", "triggered_skill", "route_basis", "route_plan", "handoffs", "evidence_scope", "risk_level", "route_status", "execution_gate", "routing_policy"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "route_id": {
+      "type": "string",
+      "pattern": "^route-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "triggered_skill": { "type": "string", "minLength": 1 },
+    "route_basis": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "mode_decision": { "type": ["string", "null"] },
+    "route_status": {
+      "type": "string",
+      "enum": ["active", "completed", "blocked", "failed", "cancelled"]
+    },
+    "route_plan": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["route_step_id", "skill", "dependency_step_ids", "status"],
+        "properties": {
+          "route_step_id": {
+            "type": "string",
+            "pattern": "^step-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "skill": { "type": "string", "minLength": 1 },
+          "dependency_step_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^step-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          "parallel_group": { "type": ["string", "null"] },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "running", "completed", "blocked", "failed", "skipped"]
+          }
+        }
+      }
+    },
+    "handoffs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "handoff_id", "route_id", "from_step_id", "to_step_id",
+          "from", "to", "reason", "status", "priority",
+          "artifact_refs", "finding_refs", "visited_skills", "hop_count", "new_evidence_refs"
+        ],
+        "properties": {
+          "handoff_id": {
+            "type": "string",
+            "pattern": "^hof-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "route_id": {
+            "type": "string",
+            "pattern": "^route-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "from_step_id": {
+            "type": "string",
+            "pattern": "^step-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "to_step_id": {
+            "type": "string",
+            "pattern": "^step-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "from": { "type": "string", "minLength": 1 },
+          "to": { "type": "string", "minLength": 1 },
+          "reason": { "type": "string", "minLength": 1 },
+          "artifact_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^artifact-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          "finding_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^finding-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          "visited_skills": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "type": "string" }
+          },
+          "hop_count": { "type": "integer", "minimum": 0 },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "accepted", "completed", "rejected", "blocked"]
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["critical", "high", "normal", "low"]
+          },
+          "reentry_reason": { "type": ["string", "null"] },
+          "new_evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^led-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          }
+        }
+      }
+    },
+    "evidence_scope": { "type": "string", "minLength": 1 },
+    "risk_level": {
+      "type": "string",
+      "enum": ["low", "medium", "high"]
+    },
+    "next_action": { "type": ["string", "null"] },
+    "execution_gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required"],
+      "properties": {
+        "required": { "type": "boolean" },
+        "reason": { "type": ["string", "null"] },
+        "policy_ref": { "type": ["string", "null"] }
+      },
+      "if": {
+        "properties": { "required": { "const": true } }
+      },
+      "then": {
+        "properties": {
+          "reason": { "type": "string", "minLength": 1 }
+        },
+        "required": ["reason"]
+      }
+    },
+    "routing_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_hops"],
+      "properties": {
+        "max_hops": { "type": "integer", "default": 16, "minimum": 1 }
+      }
+    }
+  }
+}

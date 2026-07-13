@@ -1,0 +1,95 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:forensic-agent-skills:schema:recovery-policy:1.0",
+  "title": "Recovery Policy",
+  "description": "Phase 2 重建恢复策略",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "operations", "default"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "operations": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "artifact_export": { "$ref": "#/$defs/operation_with_tools" },
+        "disk_format_conversion": { "$ref": "#/$defs/operation_with_tools" },
+        "runtime_configuration": { "$ref": "#/$defs/operation_with_backends" },
+        "runtime_launch": { "$ref": "#/$defs/operation_with_backends" }
+      }
+    },
+    "default": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["auto_retry", "action"],
+      "properties": {
+        "auto_retry": { "type": "boolean", "const": false },
+        "action": { "type": "string", "const": "replan" }
+      }
+    }
+  },
+  "$defs": {
+    "tool_candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool", "operation"],
+      "properties": {
+        "tool": { "type": "string", "minLength": 1 },
+        "operation": { "type": "string", "minLength": 1 }
+      }
+    },
+    "error_class_with_tools": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["auto_retry"],
+      "properties": {
+        "auto_retry": { "type": "boolean" },
+        "max_attempts": { "type": "integer", "minimum": 1 },
+        "tool_candidates": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/tool_candidate" }
+        },
+        "action": { "type": "string", "enum": ["retry", "fallback", "replan"] }
+      }
+    },
+    "error_class_with_backends": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["auto_retry"],
+      "properties": {
+        "auto_retry": { "type": "boolean" },
+        "max_attempts": { "type": "integer", "minimum": 1 },
+        "timeout_seconds": { "type": "integer", "minimum": 1 },
+        "fallback_backends": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["vmware", "qemu", "virtualbox", "docker", "wsl", "manual"]
+          }
+        },
+        "action": { "type": "string", "enum": ["retry", "fallback", "replan"] }
+      }
+    },
+    "operation_with_tools": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required_capability": { "type": "string" },
+        "error_classes": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/error_class_with_tools" }
+        }
+      }
+    },
+    "operation_with_backends": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "error_classes": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/error_class_with_backends" }
+        }
+      }
+    }
+  }
+}

@@ -12,7 +12,7 @@ The skills are **evidence-first**: every conclusion must cite a file, command ou
 
 - Not a general-purpose coding assistant toolkit.
 - Not a one-click execution framework — the skills define workflows, evidence requirements, and validation steps; concrete tools are selected by the operator or tool-router.
-- Not a malware detonation framework — malware-related skills focus on forensic analysis, artifact extraction, IOC generation, and reportable findings.
+- Not a malware detonation framework — malware-specific recovery is planned for Phase 3 and is not a current executable capability.
 - Not a replacement for forensic tools (Autopsy, Volatility, binwalk, etc.) — the skills orchestrate and validate their output.
 - Not competition-specific — while born from CTF practice, the architecture targets general forensic workflows.
 
@@ -24,24 +24,27 @@ forensic-autopilot        →  orchestrate the full chain
   file-triage           →  first-pass file identification and classification
   large-artifact-strategy → handle 1GB+ images, disk dumps, encrypted containers (if triggered)
   forensic-router       →  route material to the right path based on triage_notes
-  [domain-specific skills] → server / recovery / timeline / competition
-  timeline-reconstruction → merge events from multiple sources (if needed)
+  [implemented consumers] → server and current Web/Database/Docker domain skills
+  timeline-reconstruction → merge supported server-source events (if needed)
+  no-compatible-skill   →  preserve evidence and report planned/unsupported scope
   answer-gate           →  five-step validation before any conclusion is submitted
   report-writer         →  structured output with evidence citations
 
 evidence-ledger is written throughout the chain and read by answer-gate/report-writer.
 ```
 
+Current executable scope is Core, Triage, Server, and server-scoped Timeline. Recovery and Competition are planned migration phases and are not current runtime targets.
+
 ## Skill Categories
 
 | Category | Path | Purpose |
 |----------|------|---------|
 | **Core** | `skills/core/` | Control loop, routing, evidence tracking, validation, output |
-| **Triage** | `skills/triage/` | File classification, large artifact handling, uncommon media |
+| **Triage** | `skills/triage/` | File classification and large artifact handling |
 | **Server** | `skills/server/` | Server forensics: rebuild, live response, Linux/Web/DB/Docker/cluster |
-| **Timeline** | `skills/timeline/` | Multi-source event timeline reconstruction |
-| **Recovery** | `skills/recovery/` | Proprietary formats, firmware, NAS/RAID, encryption, malware |
-| **Competition** | `skills/competition/` | CTF and competition-specific output (Phase 4) |
+| **Timeline** | `skills/timeline/` | Server-scoped event timeline reconstruction |
+| **Recovery** | `skills/recovery/` | Planned Phase 3: proprietary formats, firmware, NAS/RAID, encryption, malware |
+| **Competition** | `skills/competition/` | Planned Phase 4: CTF and competition-specific output |
 
 ## Recommended Entry Point
 
@@ -55,8 +58,8 @@ Migrating from `E:\CompetitionTools\skills` (41 skills) in four phases. See [`do
 
 | Phase | Scope | Status |
 |-------|-------|--------|
-| **Phase 1** | Core control loop (9 modules) | Drafts created; under review |
-| **Phase 2** | Server forensic chain (10 modules) | Pending |
+| **Phase 1** | Core control loop (9 modules) | Completed |
+| **Phase 2** | Server forensic chain (10 modules) | Completed |
 | **Phase 3** | Uncommon media & recovery (5 modules) | Pending |
 | **Phase 4** | Competition-specific output (2 modules) | Pending |
 
@@ -77,8 +80,8 @@ forensic-agent-skills/
     ├── triage/
     ├── server/
     ├── timeline/
-    ├── recovery/
-    └── competition/
+    ├── recovery/                       ← planned Phase 3; not yet executable
+    └── competition/                    ← planned Phase 4; not yet executable
 ```
 
 ## Current Status
@@ -86,8 +89,7 @@ forensic-agent-skills/
 - [x] Repository bootstrapped
 - [x] Agent configuration (`AGENTS.md`, `docs/agents/`)
 - [x] Migration inventory (`docs/migration/old-skills-inventory.md`)
-- [x] Phase 1 — Core control loop drafts
-- [ ] Phase 1 — Human review and refinement
-- [ ] Phase 2 — Server forensic chain
+- [x] Phase 1 — Core control loop and review
+- [x] Phase 2 — Server forensic chain
 - [ ] Phase 3 — Uncommon media & recovery
 - [ ] Phase 4 — Competition-specific output

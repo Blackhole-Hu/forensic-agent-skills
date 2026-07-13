@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "route_id": "route-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  "triggered_skill": "server-forensics-router",
+  "route_basis": ["test"],
+  "route_status": "active",
+  "route_plan": [],
+  "handoffs": [],
+  "evidence_scope": "test",
+  "risk_level": "low",
+  "execution_gate": {"required": true},
+  "routing_policy": {"max_hops": 16}
+}

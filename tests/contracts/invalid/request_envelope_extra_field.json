@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "request": {
+    "material_info": {
+      "artifact_refs": [],
+      "material_type": "test",
+      "triage_notes": []
+    },
+    "objective": null,
+    "objective_status": "unknown",
+    "context": null,
+    "payload": {},
+    "extra_field_should_fail": true
+  }
+}

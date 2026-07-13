@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:forensic-agent-skills:schema:response-envelope:1.0",
+  "title": "Response Envelope",
+  "description": "Phase 2 统一响应信封格式",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "investigation_summary", "route_record", "findings", "ledger_events", "artifact_refs", "payload"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "investigation_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["current_assessment", "key_evidence"],
+      "properties": {
+        "current_assessment": { "type": "string" },
+        "key_evidence": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "excluded_routes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "route_record": {
+      "type": "object",
+      "$ref": "urn:forensic-agent-skills:schema:route-record:1.0"
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "$ref": "urn:forensic-agent-skills:schema:finding-record:1.0"
+      }
+    },
+    "ledger_events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "$ref": "urn:forensic-agent-skills:schema:ledger-event:1.0"
+      }
+    },
+    "artifact_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^artifact-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      }
+    },
+    "payload": { "type": "object" }
+  }
+}

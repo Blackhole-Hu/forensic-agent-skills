@@ -1,0 +1,139 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:forensic-agent-skills:schema:ledger-event:1.0",
+  "title": "Ledger Event",
+  "description": "Phase 2 统一证据事件格式",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "event_id", "event_type", "timestamp", "skill", "status"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "event_id": {
+      "type": "string",
+      "pattern": "^led-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "event_type": {
+      "type": "string",
+      "enum": ["command", "finding", "artifact", "handoff", "state-transition"]
+    },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "skill": { "type": "string", "minLength": 1 },
+    "stage": { "type": ["string", "null"] },
+    "artifact_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^artifact-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      }
+    },
+    "parent_event_id": {
+      "type": ["string", "null"],
+      "pattern": "^led-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "route_id": {
+      "type": ["string", "null"],
+      "pattern": "^route-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "handoff_id": {
+      "type": ["string", "null"],
+      "pattern": "^hof-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "timeline_event_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^tl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "in_progress", "retrying", "blocked", "completed", "failed", "skipped"]
+    },
+    "command": { "type": ["string", "null"] },
+    "started_at": { "type": ["string", "null"] },
+    "ended_at": { "type": ["string", "null"] },
+    "exit_code": { "type": ["integer", "null"] },
+    "stdout_path": { "type": ["string", "null"] },
+    "stderr_path": { "type": ["string", "null"] },
+    "output_artifact_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^artifact-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      }
+    },
+    "finding": { "type": ["string", "null"] },
+    "confidence": {
+      "type": ["string", "null"],
+      "enum": ["high", "medium", "low", null]
+    },
+    "next_action": { "type": ["string", "null"] }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "event_type": { "const": "command" } },
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["command", "started_at"],
+        "properties": {
+          "command": { "type": "string", "minLength": 1 },
+          "started_at": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "finding" } },
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["finding", "confidence"],
+        "properties": {
+          "finding": { "type": "string", "minLength": 1 },
+          "confidence": { "type": "string", "enum": ["high", "medium", "low"] }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "handoff" } },
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["handoff_id"],
+        "properties": {
+          "handoff_id": {
+            "type": "string",
+            "pattern": "^hof-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "artifact" } },
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["artifact_refs"],
+        "properties": {
+          "artifact_refs": { "minItems": 1 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "state-transition" } },
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["stage"],
+        "properties": {
+          "stage": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "event_id": "led-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "event_type": "finding",
+  "timestamp": "2026-07-10T12:00:00Z",
+  "skill": "test-skill",
+  "status": "completed",
+  "command": null,
+  "started_at": null,
+  "ended_at": null,
+  "exit_code": null,
+  "stdout_path": null,
+  "stderr_path": null,
+  "output_artifact_refs": [],
+  "next_action": null
+}
