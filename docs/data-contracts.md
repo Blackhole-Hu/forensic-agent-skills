@@ -2157,17 +2157,21 @@ Response 中每个 `region_assessments.offset` 必须是与 Request 对应 regio
 
 上述判定不改变 `confidence` 的含义；`high|medium|low` 仍只表达 Evidence 对 Finding、region assessment 或 route candidate 的支持强度。
 
-#### Pending route candidates
+#### Recovery route candidates
 
-`proprietary-format-recovery`、`firmware-iot-forensics`、`nas-raid-encrypted-storage` 和 `malware-forensics` 当前仍为 Pending。对应 Evidence 只能写入 `payload.route_candidates`，并满足：
+`proprietary-format-recovery` 当前已可执行。uncommon 只能在 `payload.route_candidates` 中生成候选，不能直接调用。route candidate 本身只包含消费者声明、路由依据、Evidence、availability、confidence 和 next action：
 
-- `candidate_skill` 使用上述 Skill 名称之一；
-- `route_basis`、`artifact_refs`、`finding_refs` 非空且可回查；
+- `candidate_skill: proprietary-format-recovery`；
+- `route_basis`、`artifact_refs` 和 `finding_refs` 非空且可回查；
 - `confidence` 使用 `high|medium|low`；
-- `current_availability` 固定为 `pending`；
-- `required_next_action` 说明需等待对应迁移或返回 autopilot 记录范围限制。
+- `current_availability: executable`；
+- `required_next_action` 指向 Router 的完整输入与 Gate 校验。
 
-Pending route candidate 不是 Route Step、Handoff 或调用记录。不得把 Pending Skill 加入 `visited_skills`，不得声明已经调用或已经完成专项分析。
+同层顶级 transfer `payload` 才承载完整 proprietary profile：非空 `candidate_regions`、非空 `candidate_schema` 或 `upstream_structure_hints`、本轮 `ledger_event_refs`、三个 candidate arrays、`requested_checks` 和 `analysis_limits`。三个 arrays 均遵循 8.12 item profile，`candidate_usability` 只用 `executable|hint-only`；请求 candidate validation 时提供正整数 `max_candidate_checks`，缺失或为 `null` 时只允许结构恢复并设置预算 `required_next_action`。route candidate 不得嵌套或替代这份顶层 profile。
+
+候选本身不是 proprietary Route Step、Handoff 或调用记录。uncommon 必须通过既有 bounded Router re-entry 返回 Router；只有 Router 校验完整 payload、Route context、`visited_skills`、hop、candidate usability、material Artifact、candidate check budget、limits 和 Gate 后，才能创建正式 proprietary Handoff。只有 hint-only candidates 时，必须另有无需 key/plaintext validation 的可执行布局恢复任务。
+
+`firmware-iot-forensics`、`nas-raid-encrypted-storage` 和 `malware-forensics` 仍为 Pending。对应 candidate 必须包含 `current_availability: pending`、candidate skill、可回查 Evidence、`confidence` 和 `required_next_action`。Pending candidate 不是 Route Step、Handoff 或调用记录，不得加入 `visited_skills`。
 
 #### Bounded Router re-entry
 
@@ -2183,6 +2187,265 @@ bounded re-entry 只指 uncommon 发出的单向 Router 重评 Handoff：
 4. `visited_skills`、`hop_count` 和 `routing_policy.max_hops` 合法；
 5. 同一 route 和 evidence scope 未执行过 uncommon → Router re-entry。
 
-没有新 Evidence 时禁止 re-entry。Router 收到 Handoff 时 `visited_skills` 已包含 `uncommon-media-triage`，因此不得再次选择 uncommon；仍无兼容消费者时返回 `forensic-autopilot`，由 `answer-gate` 校验 Artifact、Finding、Evidence 引用和范围限制，再由 `report-writer` 生成限制报告。
+没有新 Evidence 时禁止 re-entry。Router 收到 Handoff 时 `visited_skills` 已包含 `uncommon-media-triage`，因此不得再次选择 uncommon；proprietary 输入完整时可选择 `proprietary-format-recovery` 并将其加入 `visited_skills`，输入不足时只能在合法 hop/visited 范围内请求 `large-artifact-strategy` 补充 bounded Evidence，否则返回 `forensic-autopilot`，且不创建半完整 Handoff。
 
 普通路由、bounded read，以及显式 `analysis_limits` 或 `implicit-bounded-input` 内的静态结构验证使用 `execution_gate.required=false`。状态改变或授权范围扩张时使用 `execution_gate.required=true`，并填写非空 `reason`；Gate 不使用 `classification_status` 表达状态。
+
+### 8.12 proprietary-format-recovery
+
+`proprietary-format-recovery` 是 Phase 3 第二个已实现模块。它复用现有 Request Envelope、Response Envelope、Route Record、Artifact Record、Finding Record 和 Ledger Event，不新增 JSON Schema。它只对 Router 批准的 bounded regions 做专有容器布局恢复、有限 transform/key/plaintext 验证和已验证边界内的 carving。
+
+#### Request payload profile
+
+```yaml
+payload:
+  source_artifact_refs:
+    - artifact-<uuid>
+  candidate_regions:
+    - region_id: string
+      source_artifact_ref: artifact-<uuid>
+      derived_artifact_ref: artifact-<uuid>|null
+      offset: integer
+      length: integer
+      sampling_method: string
+  upstream_region_assessments: array
+  upstream_structure_hints: array
+  candidate_schema: object|null
+  route_basis: array
+  artifact_refs:
+    - artifact-<uuid>
+  finding_refs:
+    - finding-<uuid>
+  ledger_event_refs:
+    - led-<uuid>
+  header_hints: array
+  directory_table_hints: array
+  block_table_hints: array
+  index_table_hints: array
+  record_boundary_hints: array
+  transform_hypotheses:
+    - candidate_id: string
+      transform_type: string
+      parameters: object
+      target_region_ids:
+        - string
+      evidence_refs:
+        - artifact-<uuid>|finding-<uuid>|led-<uuid>
+      candidate_usability: executable|hint-only
+  key_material_candidates:
+    - candidate_id: string
+      candidate_type: string
+      material_artifact_ref: artifact-<uuid>|null
+      fingerprint: string
+      target_region_ids:
+        - string
+      evidence_refs:
+        - artifact-<uuid>|finding-<uuid>|led-<uuid>
+      candidate_usability: executable|hint-only
+  known_plaintext_candidates:
+    - candidate_id: string
+      material_artifact_ref: artifact-<uuid>|null
+      fingerprint: string
+      encoding: string
+      target_region_ids:
+        - string
+      evidence_refs:
+        - artifact-<uuid>|finding-<uuid>|led-<uuid>
+      candidate_usability: executable|hint-only
+  counter_evidence: array
+  requested_checks: array
+  analysis_limits:                       # optional
+    max_regions: integer|null
+    max_bytes_per_region: integer|null
+    max_total_bytes: integer|null
+    max_slice_bytes: integer|null
+    timeout_seconds: integer|null
+    max_candidate_checks: integer|null
+```
+
+Request 约束：
+
+1. `request.context` 必须包含当前 Route Record；`visited_skills` 已包含 `proprietary-format-recovery` 时 Router 不得再次选择。
+2. 定义 `effective_source_artifact_refs`：非空 `source_artifact_refs` 优先；该字段缺失或为空数组时使用 `request.material_info.artifact_refs`。结果必须非空，且每个引用都能解析到 Artifact Record。
+3. `candidate_regions` 必须存在且非空。每个 region 的 `source_artifact_ref` 必须属于 effective source。
+4. `offset` 必须是 `>= 0` 的整数，`length` 必须是正整数；不得接受十六进制字符串、带单位字符串或其他文本格式。
+5. source Artifact Record 的 `size` 必须是已知非负整数；`offset + length` 只能与对应 source size 比较且不得越界。
+6. `derived_artifact_ref` 非空时必须解析到 Artifact Record，其 `source_artifact_id` 必须匹配 region source，且 Record `size` 可验证。
+7. 所有 Artifact、Finding 和 Ledger Event 引用必须存在且可回查。
+8. 至少存在一种 recovery-specific Evidence：header/directory/block/index/record boundary hint、upstream region assessment、candidate schema、有限 transform/key/plaintext candidate 或相应 validation Evidence。
+9. 扩展名、设备名、单个 magic、单独熵值或外部资料不能独立触发该 Skill。
+10. 所有非空显式 limit 字段必须是正整数。`max_regions`、`max_bytes_per_region`、`max_total_bytes`、`max_slice_bytes` 和 `timeout_seconds` 沿用 uncommon profile 的逐项验证与 timeout 规则。
+11. `max_slice_bytes` 生效且 `derived_artifact_ref` 非空时，使用派生 Artifact Record 的 `size` 校验；不得新增或读取 `slice.length`。
+12. 三个 candidate arrays 的 item 必须包含上述全部字段；`candidate_usability` 只能是 `executable|hint-only`。candidate ID 必须非空且在各自数组唯一，`target_region_ids` 必须非空并解析到 Request candidate region，`evidence_refs` 必须非空且可回查。
+13. executable candidate 必须具有实际验证所需的数据。所有非空 `material_artifact_ref` 必须解析到 Artifact Record；只有 fingerprint、没有可解析 material Artifact 的 key/plaintext candidate 固定为 hint-only。原始 key、敏感 plaintext 和 token 只存放于受保护派生 Artifact，正文只保留引用和 fingerprint。
+14. hint-only candidate 可以支持 Hypothesis、Finding 或 `required_next_action`，但不得参与自动 transform/key/plaintext validation，也不进入 candidate check 组合。
+15. 一次 `candidate_check` 固定为一个实际执行组合：一个 candidate region、一个 executable transform candidate、零或一个 executable key candidate、零或一个 executable known-plaintext candidate。每执行一个不同组合，计数加一，并对应一个唯一 `check_id`。
+16. 请求执行 candidate validation 时，`max_candidate_checks` 必须存在且为正整数；执行前计划组合总数和实际执行数都不得超过该值。无法证明计划组合数时不得开始候选验证。
+17. `max_candidate_checks` 缺失或为 `null` 时仍可执行 header、table、layout、record boundary 和 `candidate_schema` 恢复，但不得执行 transform/key/plaintext candidate validation；设置 `required_next_action` 要求提供正整数候选检查预算。不得仅凭数组有限自动执行。
+
+`analysis_limits` 整体缺失时记录 `limits_source: implicit-bounded-input`，只读取已提供 regions、不扩大 offset/length、不请求新 slice，并且不执行 transform/key/plaintext candidate validation。提供显式 limits 时记录 `limits_source: explicit`。任一适用显式限制无效、无法强制或实际超限时不得执行对应受限动作，并记录字段、实际值、限制值和 `required_next_action`。
+
+#### Response payload profile
+
+```yaml
+payload:
+  region_assessments: array
+  format_hypotheses: array
+  container_layout_candidates: array
+  header_assessments: array
+  directory_table_candidates: array
+  block_table_candidates: array
+  index_table_candidates: array
+  record_boundary_candidates: array
+  transform_hypotheses: array
+  key_hypotheses: array
+  key_verification_results: array
+  known_plaintext_checks: array
+  candidate_schema: object|null
+  field_mappings: array
+  validation_checks:
+    - check_id: string
+      region_id: string
+      transform_candidate_id: string
+      key_candidate_id: string|null
+      plaintext_candidate_id: string|null
+      started_at: ISO8601
+      ended_at: ISO8601
+      result: string
+      evidence_refs:
+        - artifact-<uuid>|finding-<uuid>|led-<uuid>
+  counter_evidence: array
+  carved_artifact_refs:
+    - artifact-<uuid>
+  recovered_artifact_refs:
+    - artifact-<uuid>
+  excluded_routes: array
+  route_candidates: array
+  unresolved_questions: array
+  required_next_action: string|null
+  limits_source: explicit|implicit-bounded-input
+  recovery_status: candidate_only|structure_reproduced|key_candidate|key_verified|recovery_reproduced|rejected|unknown|bounded_checks_exhausted
+```
+
+每个实际执行的 candidate check 都必须生成一条上述 `validation_checks` 记录。`check_id` 每次执行唯一；region 和 candidate ID 必须解析到本 Request，所有被执行 candidate 的 usability 必须为 executable。candidate check 实际执行数等于本轮此类记录数；计划组合总数、实际执行数和 `max_candidate_checks` 一并记录。hint-only candidate 不得出现在这些 ID 字段中。
+
+#### Recovery status
+
+`recovery_status` 只允许以下八个值：
+
+| recovery_status | 含义 |
+|---|---|
+| `candidate_only` | 存在恢复候选，但尚未复现结构或变换 |
+| `structure_reproduced` | 布局或字段结构已在多个记录中复现 |
+| `key_candidate` | 存在有限 key Hypothesis，尚未通过独立验证 |
+| `key_verified` | key 在批准范围内通过至少两类独立验证，但完整恢复尚未复现 |
+| `recovery_reproduced` | 恢复步骤可重复执行，输出经 parser 或独立结构检查验证 |
+| `rejected` | 当前批准范围内所有相关 Hypothesis 都已明确证伪，且没有存活候选 |
+| `unknown` | 输入或 Evidence 不足，或批准检查尚未全部执行 |
+| `bounded_checks_exhausted` | 所有批准检查已完成，仍有无法在当前范围内验证或证伪的存活候选 |
+
+`recovery_status` 不能写入 Finding confidence、Route Step status、Handoff status、`route_status` 或 `execution_gate`。Finding、route candidate 和 key Hypothesis 的 Evidence confidence 仍只使用 `high|medium|low`。不得扩展第九种 recovery status。
+
+整体 `recovery_status` 每轮只能选择一个值。存在正面结果时按以下固定优先级选择最高项：
+
+`recovery_reproduced` > `key_verified` > `structure_reproduced` > `key_candidate` > `candidate_only`
+
+- `recovery_reproduced`：恢复步骤已复现，且输出通过 parser 或独立结构检查。
+- `key_verified`：key 通过至少两类独立验证，但完整恢复尚未复现。
+- `structure_reproduced`：布局或字段关系已经复现，即使仍存在未验证 key candidate。
+- `key_candidate`：尚未复现结构或完整恢复，但存在存活的有限 key Hypothesis。
+- `candidate_only`：仅存在恢复候选，尚无更高等级结果。
+
+没有正面状态时才使用 fallback：所有相关 Hypothesis 均被明确证伪且无存活候选时选择 `rejected`；所有批准检查完成但仍有无法在当前范围内验证或证伪的存活候选时选择 `bounded_checks_exhausted`；输入/Evidence 不足或批准检查尚未全部执行时选择 `unknown`。单个 Hypothesis rejected 不得自动导致整体 `rejected`；单项失败必须写入 `counter_evidence`、`validation_checks` 和 `excluded_routes`。状态选择依据必须记录在 `investigation_summary` 或 `validation_checks`。
+
+#### Key material minimum disclosure
+
+`key_hypotheses` 每项至少包含：
+
+```yaml
+key_hypotheses:
+  - candidate_id: string
+    candidate_type: string
+    fingerprint: string
+    material_artifact_ref: artifact-<uuid>|null
+    verification_status: string
+    evidence_refs:
+      - artifact-<uuid>|finding-<uuid>|led-<uuid>
+    confidence: high|medium|low
+```
+
+- 原始 key、口令、token、个人数据和敏感明文不得默认写入 Response、Finding 或 Ledger Event 正文。
+- 需要保留的原始 material 写入受保护派生 Artifact；Response 只记录 Artifact 引用和 fingerprint。
+- 文件名、外部资料或单个明文命中不能独立产生 `key_verified`。
+- `key_verified` 至少需要两类独立验证依据，例如 transform 后结构闭合与独立 checksum/parser 验证。
+
+#### Bounded carving
+
+自动 carving 只有同时满足以下条件才允许：
+
+1. 数据块由已验证 header、directory/block/index table 或 record boundary 指向。
+2. source Artifact、offset 和 length 均可回查。
+3. region 完全位于已批准 `candidate_regions` 内。
+4. 单个派生 Artifact Record 的 `size` 不超过适用的 `max_slice_bytes`。
+5. 总读取量不超过适用的 `max_total_bytes`。
+6. 输出数量和范围有限，且写入批准工作目录。
+7. 每个输出生成派生 Artifact Record、Hash 和匹配的 `source_artifact_id`。
+8. original Artifact 保持只读。
+
+缺少已验证边界、需要全源 carving、批量恢复或扩大范围时必须进入 Execution Gate，不得先执行。
+
+#### Handoff and transfer chain
+
+正式链路固定为：
+
+`uncommon-media-triage` → `forensic-router` → `proprietary-format-recovery`
+
+1. uncommon 只输出 `current_availability: executable` 的 proprietary route candidate，不直接调用消费者。
+2. uncommon candidate 对应的顶层 `request.payload` 必须原样保留完整 proprietary profile，包括非空 `candidate_regions`、`candidate_schema` 或 `upstream_structure_hints`、三个 candidate arrays 的完整 item profile，以及 route basis、Artifact、Finding 和 uncommon 本轮 Ledger Event 引用；`route_candidates` 项只声明消费者与 availability，不嵌套或替代该 profile。
+3. uncommon 通过现有、最多一次的 bounded re-entry 返回 Router。
+4. Router 是唯一消费者决策点。它验证完整 payload、Route context、`visited_skills`、hop、candidate usability、material Artifact、candidate check budget、limits 和 Gate；至少存在一个可解析 executable candidate，或存在无需 key/plaintext validation 的可执行布局恢复任务时，才创建 proprietary Route Step/Handoff 并加入 `visited_skills`。只有 hint-only candidates 时可以执行明确布局任务，但不得声明或执行 key/plaintext validation；若也无布局任务，则不创建 Handoff。
+5. 首次路由且 uncommon 尚未访问时，输入不足可返回 uncommon；已完成 uncommon bounded re-entry 后不得再次选择 uncommon，只能在合法 hop/visited 范围内请求 `large-artifact-strategy` 补充 bounded Evidence，否则返回 autopilot。任何分支都不创建半完整 Handoff。
+6. autopilot 只执行 Router 返回的 proprietary 决策，原样传递 payload 和 Route context，不维护 recovery-specific 阈值。
+7. `large-artifact-strategy` 只提供 bounded regions 和 Evidence，不能决定或直接调用 proprietary。
+8. proprietary 完成且没有新消费者时返回 autopilot，进入 Answer Gate。
+
+#### Execution Gate boundary
+
+在现有授权、批准工作目录、candidate regions 和适用 limits 内，下列动作使用 `execution_gate.required=false`：
+
+- 已有 candidate region 内的 bounded read。
+- header、table、offset、length 和 checksum 验证。
+- Request item profile 完整、usability 为 executable、material 可解析且有显式 `max_candidate_checks` 预算的 transform/key candidates。
+- Request item profile 完整、usability 为 executable、material 可解析且有显式 `max_candidate_checks` 预算的 known-plaintext candidates。
+- 字节序、编码、字段 offset 和 parser 一致性验证。
+- 已验证边界内的 bounded carving。
+- 在批准工作目录内创建有限派生 Artifact。
+- 当前 limits 内登记 Artifact、Finding 和 Ledger Event。
+- 返回 Router 重评。
+
+自动 candidate validation 必须同时满足：候选由 Request 明确提供且 usability 为 executable；material Artifact 可解析；不生成新候选；不扩展字典；不枚举 keyspace；只读批准 regions；`max_candidate_checks` 存在且为正整数；计划组合总数与实际执行数都不超过该 budget；不超过 `max_total_bytes`、`max_slice_bytes` 和 `timeout_seconds`；输出位于批准工作目录；不修改 original Artifact。`max_candidate_checks` 缺失或为 `null` 时不执行 transform/key/plaintext candidate validation，但可继续结构恢复并设置要求预算的 `required_next_action`。
+
+下列动作必须设置 `execution_gate.required=true` 并填写非空 `reason`：
+
+- 生成、枚举或爆破 keyspace；字典扩展或组合候选。
+- 长时间恢复、长时间解密或批量 key 测试。
+- 全文件扫描、全量 strings 或全源 known-plaintext 搜索。
+- 超出 candidate regions 的读取。
+- 大范围 carving、批量恢复或超出 analysis limits。
+- 安装工具或依赖。
+- 联网、在线检索或上传第三方。
+- 执行程序、脚本、宏或固件；动态分析或沙箱。
+- RAID/LVM 激活、解锁或 mount。
+- 修改 original Artifact。
+- 向未批准路径持久化恢复结果。
+
+#### Route candidates and loop prevention
+
+- firmware、storage 和 malware 保持 Pending。其 route candidate 必须包含 `current_availability: pending`、candidate skill、Evidence 引用、`confidence` 和 `required_next_action`；不得创建 Route Step、Handoff 或 `visited_skills` 条目。
+- uncommon → Router re-entry 最多一次；Router 选择 proprietary 后加入 `visited_skills`。
+- proprietary 默认返回 autopilot。只有本轮产生新 Artifact 或 Finding 时，才可最多一次返回 Router。
+- proprietary → Router Handoff 必须包含非空 `reentry_reason`、非空 `new_evidence_refs`、本轮新 Ledger Event，以及合法 `hop_count` 和 `routing_policy.max_hops`。
+- Router 重评后不得再次选择 `uncommon-media-triage` 或 `proprietary-format-recovery`。
+- 禁止 uncommon → Router → proprietary → Router → uncommon。
+- 禁止 proprietary → Router → proprietary。
+- 没有其他当前可执行消费者时返回 autopilot。
