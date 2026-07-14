@@ -2029,3 +2029,160 @@ anomalies:
 - Timeline Skill 不重新执行领域取证、不自行建立远程 Session；
 - 需要额外采集或重新分析时，在 `route_record.handoffs` 创建证据化 Handoff；Route 继续时使用 `route_status=active`，完成后把 Timeline 交给 `answer-gate`；
 - 输出限制达到时停止扩展并保留已完成结果；可恢复 Handoff 继续 Route 时使用 `active`，缺少关键证据且无法继续时使用 `blocked`。
+
+### 8.11 uncommon-media-triage
+
+`uncommon-media-triage` 是 Phase 3 第一个已实现模块。它复用现有 Request Envelope、Response Envelope、Route Record、Artifact Record、Finding Record 和 Ledger Event，不定义新的 Schema。结构分析专用字段全部放在现有 `request.payload` 和 Response `payload` 中。
+
+#### Request payload
+
+```yaml
+payload:
+  source_artifact_refs:
+    - artifact-<uuid>
+  candidate_regions:
+    - region_id: string
+      source_artifact_ref: artifact-<uuid>
+      derived_artifact_ref: artifact-<uuid>|null
+      offset: integer
+      length: integer
+      sampling_method: string
+  upstream_signature_hits: array
+  upstream_sampling_results: array
+  entropy_summary: object|null
+  structure_hints: array
+  requested_checks: array
+  analysis_limits:                 # optional
+    max_regions: integer|null
+    max_bytes_per_region: integer|null
+    max_total_bytes: integer|null
+    max_slice_bytes: integer|null
+    timeout_seconds: integer|null
+```
+
+Request 约束：
+
+- 定义 `effective_source_artifact_refs`：非空 `request.payload.source_artifact_refs` 优先；该字段缺失或为空数组时使用 `request.material_info.artifact_refs`。空数组与缺失等价。
+- `effective_source_artifact_refs` 必须非空，每个引用必须能解析到 Artifact Record；每个 region 的 `source_artifact_ref` 必须属于该列表。
+- `candidate_regions` 必须存在且非空；每个 region 必须回指 source Artifact。Router 没有至少一个合法 bounded region 时不得选择 uncommon。
+- `derived_artifact_ref` 非空时必须能解析到 Artifact Record，其 `source_artifact_id` 必须等于 region 的 `source_artifact_ref`。
+- `offset` 必须是 `>= 0` 的整数，`length` 必须是正整数；不得接受十六进制字符串、带单位字符串或其他文本格式。source Artifact Record 的 `size` 必须是已知的非负整数，才能验证 `offset + length <= source Artifact size`；size 缺失、为 `null` 或类型无效时不得调用 uncommon，并记录 `required_next_action`。
+- 1GB+ source 必须先经过 `large-artifact-strategy`，uncommon 只接收 bounded region 或派生 slice。
+- `entropy_summary`、文件扩展名、设备名称、品牌、单个 magic、单个时间戳或单个坐标不能独立支持路线。
+- Router 调用 uncommon 时，`request.context` 必须包含当前 Route Record；`visited_skills` 已包含 uncommon 时不得再次选择。
+- `analysis_limits` 为 Recommended。缺失时只读取已提供 regions，不扩大 offset/length、不请求新 slice、不执行全文件扫描，并在 Response payload 记录 `limits_source: implicit-bounded-input`。
+- 所有非空显式 limit 必须是正整数：`max_regions > 0`、`max_bytes_per_region > 0`、`max_total_bytes > 0`、`max_slice_bytes > 0`、`timeout_seconds > 0`。字段为 `null` 或缺失时，不应用该项限制；非空但非整数或小于等于 0 时不得调用 uncommon。
+- 显式 `analysis_limits` 按字段分别校验：`candidate_regions` 数量 `<= max_regions`；每个 `region.length <= max_bytes_per_region`；所有 `region.length` 总和 `<= max_total_bytes`；实际运行时间 `<= timeout_seconds`。
+- `max_slice_bytes` 生效且 `derived_artifact_ref` 非空时，必须解析对应派生 Artifact Record，并验证 `derived Artifact Record.size <= max_slice_bytes`。不得新增或读取 `slice.length`；派生 Artifact size 为 `null`、类型无效或 Artifact 无法解析时，不能通过该项输入校验。
+- 非空 `timeout_seconds` 必须能在调用时强制执行并持续记录实际运行时间；无法强制 timeout 时不得调用 uncommon。
+- 任一显式限制超出时不得开始或继续 uncommon，必须记录具体超限字段、实际值、限制值和 `required_next_action`。
+- 任何 effective source 缺失、Artifact 无法解析、region 归属冲突或派生关系冲突，都禁止调用 uncommon，并记录具体原因和 `required_next_action`。
+
+#### Request payload transfer chain
+
+1. `file-triage` 发现结构候选时必须输出非空 `candidate_regions`，按 `effective_source_artifact_refs` 验证 source 归属和派生关系；没有合法 region 时不得建议 uncommon。
+2. 1GB+ 材料由 `large-artifact-strategy` 向 Router 提供 `source_artifact_refs`、`candidate_regions`、`upstream_signature_hits`、`upstream_sampling_results`、`entropy_summary`、`structure_hints` 和存在时的 `analysis_limits`，并执行相同的 source 归属检查。
+3. `forensic-router` 验证 region 非空、字段完整、来源可回查和边界合法。输入不足时返回 `file-triage` 或 `large-artifact-strategy` 补充 bounded Evidence，不创建 uncommon Route Step 或 Handoff。
+4. Router 选择 uncommon 时原样保存并传递 Request payload，同时传递包含当前 Route Record 的 context。
+5. `forensic-autopilot` 只执行 Router 决策，不重复结构阈值；它把 Router 批准的 payload 和 context 原样交给 `uncommon-media-triage`。
+6. uncommon 对缺失或空的 `source_artifact_refs` 回退到 `request.material_info.artifact_refs`；缺少显式 limits 时应用 `implicit-bounded-input`。
+
+#### Response payload
+
+```yaml
+payload:
+  region_assessments:
+    - region_id: string
+      source_artifact_ref: artifact-<uuid>
+      derived_artifact_ref: artifact-<uuid>|null
+      offset: integer
+      length: integer
+      structure_type: fixed_record|tlv|can_like|can_container|nmea|gps_track|sensor_record|time_series|custom_database_page|unknown
+      classification_status: valid|plausible|weak_candidate|rejected|unknown
+      confidence: high|medium|low
+      candidate_record_sizes: array
+      candidate_schema: object|null
+      key_fields: array
+      boundary_evidence: array
+      validation_checks: array
+      counter_evidence: array
+      artifact_refs:
+        - artifact-<uuid>
+      finding_refs:
+        - finding-<uuid>
+      ledger_event_refs:
+        - led-<uuid>
+  structure_type: string
+  classification_status: valid|plausible|weak_candidate|rejected|unknown
+  candidate_record_sizes: array
+  candidate_schema: object|null
+  key_fields: array
+  boundary_evidence: array
+  validation_checks: array
+  counter_evidence: array
+  route_candidates:
+    - candidate_skill: string
+      route_basis: array
+      artifact_refs:
+        - artifact-<uuid>
+      finding_refs:
+        - finding-<uuid>
+      confidence: high|medium|low
+      current_availability: executable|pending
+      required_next_action: string
+  excluded_routes: array
+  sampling_requests: array
+  unresolved_questions: array
+  limits_source: explicit|implicit-bounded-input
+```
+
+Response 中每个 `region_assessments.offset` 必须是与 Request 对应 region 一致的非负整数；不得输出十六进制、带单位或其他文本 offset。
+
+`uncommon-media-triage` 遇到 PCAP、浏览器历史或完整移动设备材料时，只能写入 `excluded_routes`，生成同时引用相关 Artifact 和本轮 Ledger Event 的 scope-limitation Finding，并返回 `forensic-autopilot`；只有需要消费者重评时才返回 `forensic-router`。领域 Skill 不得设置 `route_decision: no-compatible-skill`，该决策只能由 `forensic-router` 产生。
+
+#### Classification and confidence
+
+- `classification_status` 只表达候选结构验证状态，取值固定为 `valid|plausible|weak_candidate|rejected|unknown`。
+- `confidence` 只表达 Evidence 对 Finding、region assessment 或 route candidate 的支持强度，取值固定为 `high|medium|low`。
+- `classification_status` 不得写入 Finding confidence、`route_status`、Route Step status、Handoff status 或 `execution_gate`。
+- `candidate_schema` 是候选解释，必须保留 Evidence、反证和未决问题；不得表示最终格式确认。
+
+| classification_status | 判定规则 |
+|---|---|
+| `valid` | 核心结构约束全部通过，可跨多个记录复现，无实质反证 |
+| `plausible` | 核心关系成立，但样本数量、checksum 或部分字段仍不足 |
+| `weak_candidate` | 存在结构信号，但缺少第二类独立 Evidence |
+| `rejected` | 边界、长度、checksum、字段关系或跨记录一致性明确失败 |
+| `unknown` | Evidence 不足，既不能支持也不能排除 |
+
+上述判定不改变 `confidence` 的含义；`high|medium|low` 仍只表达 Evidence 对 Finding、region assessment 或 route candidate 的支持强度。
+
+#### Pending route candidates
+
+`proprietary-format-recovery`、`firmware-iot-forensics`、`nas-raid-encrypted-storage` 和 `malware-forensics` 当前仍为 Pending。对应 Evidence 只能写入 `payload.route_candidates`，并满足：
+
+- `candidate_skill` 使用上述 Skill 名称之一；
+- `route_basis`、`artifact_refs`、`finding_refs` 非空且可回查；
+- `confidence` 使用 `high|medium|low`；
+- `current_availability` 固定为 `pending`；
+- `required_next_action` 说明需等待对应迁移或返回 autopilot 记录范围限制。
+
+Pending route candidate 不是 Route Step、Handoff 或调用记录。不得把 Pending Skill 加入 `visited_skills`，不得声明已经调用或已经完成专项分析。
+
+#### Bounded Router re-entry
+
+bounded re-entry 只指 uncommon 发出的单向 Router 重评 Handoff：
+
+`uncommon-media-triage` → `forensic-router`
+
+该 Handoff 最多允许一次，并且必须同时满足：
+
+1. uncommon 产生新的 Artifact 或 Finding；
+2. Handoff 的 `new_evidence_refs` 非空，且每个引用都指向 uncommon 本轮产生的新 Ledger Event；
+3. `reentry_reason` 明确说明新 Evidence 如何改变路线；
+4. `visited_skills`、`hop_count` 和 `routing_policy.max_hops` 合法；
+5. 同一 route 和 evidence scope 未执行过 uncommon → Router re-entry。
+
+没有新 Evidence 时禁止 re-entry。Router 收到 Handoff 时 `visited_skills` 已包含 `uncommon-media-triage`，因此不得再次选择 uncommon；仍无兼容消费者时返回 `forensic-autopilot`，由 `answer-gate` 校验 Artifact、Finding、Evidence 引用和范围限制，再由 `report-writer` 生成限制报告。
+
+普通路由、bounded read，以及显式 `analysis_limits` 或 `implicit-bounded-input` 内的静态结构验证使用 `execution_gate.required=false`。状态改变或授权范围扩张时使用 `execution_gate.required=true`，并填写非空 `reason`；Gate 不使用 `classification_status` 表达状态。

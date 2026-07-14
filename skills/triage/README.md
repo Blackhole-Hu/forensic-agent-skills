@@ -6,13 +6,17 @@ First-pass classification, routing, and handling of incoming material.
 
 | Skill | Purpose | Status |
 |-------|---------|--------|
-| `file-triage/` | File identification, hash, classification, routing | Draft |
-| `large-artifact-strategy/` | Handling 1GB+ images, disk dumps, encrypted containers | Draft |
-| `uncommon-media-triage/` | Structure-based routing for CAN/NMEA/GPS/TLV/sensor data | Pending (Phase 3) |
+| `file-triage/` | File identification, hash, classification, routing | Implemented (Phase 1) |
+| `large-artifact-strategy/` | Handling 1GB+ images, disk dumps, encrypted containers | Implemented (Phase 1) |
+| `uncommon-media-triage/` | Evidence-based structure identification for fixed records, CAN/CAN FD-like, NMEA/GPS, TLV, sensors, time series, and custom database pages | Implemented (Phase 3, first module) |
 
 ## Relationship to Core
 
-Triage skills are called by `forensic-autopilot` early in the chain, before `forensic-router`. `file-triage` produces `material_type`, `hash`, and `triage_notes`; `forensic-router` then uses `triage_notes` to make the final path decision.
+`file-triage` runs before `forensic-router` and produces `material_type`, `hash`, lightweight structural candidates, candidate regions, verified negatives, and `triage_notes`. For 1GB+ material, `large-artifact-strategy` adds bounded samples, signature verification and an offset map before Router makes the final path decision. `uncommon-media-triage` runs only after an evidence-backed Router decision and returns its assessments to `forensic-autopilot`, with at most one evidence-backed Router re-entry.
+
+## Phase 3 Status
+
+`uncommon-media-triage` is the first implemented Phase 3 module. The four Recovery skills — `proprietary-format-recovery`, `firmware-iot-forensics`, `nas-raid-encrypted-storage`, and `malware-forensics` — remain Pending. They may appear only as non-executable route candidates until their own migrations are complete.
 
 ## Migration Source
 
