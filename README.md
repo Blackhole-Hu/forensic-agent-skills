@@ -27,7 +27,8 @@ forensic-autopilot        →  orchestrate the full chain
   uncommon-media-triage →  identify evidence-backed uncommon record structures (if triggered)
   forensic-router re-entry  →  validate uncommon recovery candidate and select the consumer
   proprietary-format-recovery → reproduce bounded proprietary layouts/transforms (only after Router decision)
-  [implemented consumers] → server, current Web/Database/Docker, uncommon media triage, and proprietary recovery
+  firmware-iot-forensics → validate firmware containers/filesystems and perform bounded static extraction (only after Router decision)
+  [implemented consumers] → server, current Web/Database/Docker, uncommon media triage, proprietary recovery, and firmware static analysis
   timeline-reconstruction → merge supported server-source events (if needed)
   no-compatible-skill   →  preserve evidence and report planned/unsupported scope
   answer-gate           →  five-step validation before any conclusion is submitted
@@ -36,7 +37,7 @@ forensic-autopilot        →  orchestrate the full chain
 evidence-ledger is written throughout the chain and read by answer-gate/report-writer.
 ```
 
-Current executable scope is Core, Triage (including `uncommon-media-triage`), Server, server-scoped Timeline, and bounded `proprietary-format-recovery`. Phase 3 is in progress (2/5): uncommon media triage and proprietary format recovery are Implemented; firmware, storage, and malware recovery remain Pending. Competition remains a planned migration phase and is not a current runtime target.
+Current executable scope is Core, Triage (including `uncommon-media-triage`), Server, server-scoped Timeline, bounded `proprietary-format-recovery`, and bounded static `firmware-iot-forensics`. Phase 3 is in progress (3/5): uncommon media triage, proprietary format recovery, and firmware IoT forensics are Implemented; storage and malware recovery remain Pending. Firmware can be selected directly by Router when two independent validation mechanisms support the route, or after evidence-backed uncommon/proprietary Router re-entry. Competition remains a planned migration phase and is not a current runtime target.
 
 ## Skill Categories
 
@@ -46,7 +47,7 @@ Current executable scope is Core, Triage (including `uncommon-media-triage`), Se
 | **Triage** | `skills/triage/` | File classification, large artifact handling, and uncommon media structure identification |
 | **Server** | `skills/server/` | Server forensics: rebuild, live response, Linux/Web/DB/Docker/cluster |
 | **Timeline** | `skills/timeline/` | Server-scoped event timeline reconstruction |
-| **Recovery** | `skills/recovery/` | Phase 3 bounded proprietary recovery (Implemented); firmware, NAS/RAID, encryption, and malware modules (Pending) |
+| **Recovery** | `skills/recovery/` | Phase 3 bounded proprietary recovery and firmware static analysis (Implemented); NAS/RAID, encryption, and malware modules (Pending) |
 | **Competition** | `skills/competition/` | Planned Phase 4: CTF and competition-specific output |
 
 ## Recommended Entry Point
@@ -63,7 +64,7 @@ Migrating 41 legacy skills in four phases. See [`docs/migration/old-skills-inven
 |-------|-------|--------|
 | **Phase 1** | Core control loop (9 modules) | Completed |
 | **Phase 2** | Server forensic chain (10 modules) | Completed |
-| **Phase 3** | Uncommon media & recovery (5 modules) | In progress (2/5) |
+| **Phase 3** | Uncommon media & recovery (5 modules) | In progress (3/5) |
 | **Phase 4** | Competition-specific output (2 modules) | Pending |
 
 ## Repository Layout
@@ -83,7 +84,7 @@ forensic-agent-skills/
     ├── triage/
     ├── server/
     ├── timeline/
-    ├── recovery/                       ← proprietary recovery Implemented; three Phase 3 modules Pending
+    ├── recovery/                       ← proprietary recovery and firmware Implemented; two Phase 3 modules Pending
     └── competition/                    ← planned Phase 4; not yet executable
 ```
 
@@ -94,5 +95,5 @@ forensic-agent-skills/
 - [x] Migration inventory (`docs/migration/old-skills-inventory.md`)
 - [x] Phase 1 — Core control loop and review
 - [x] Phase 2 — Server forensic chain
-- [ ] Phase 3 — Uncommon media & recovery — In progress (2/5)
+- [ ] Phase 3 — Uncommon media & recovery — In progress (3/5)
 - [ ] Phase 4 — Competition-specific output

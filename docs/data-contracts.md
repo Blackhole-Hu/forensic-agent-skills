@@ -2171,7 +2171,9 @@ Response 中每个 `region_assessments.offset` 必须是与 Request 对应 regio
 
 候选本身不是 proprietary Route Step、Handoff 或调用记录。uncommon 必须通过既有 bounded Router re-entry 返回 Router；只有 Router 校验完整 payload、Route context、`visited_skills`、hop、candidate usability、material Artifact、candidate check budget、limits 和 Gate 后，才能创建正式 proprietary Handoff。只有 hint-only candidates 时，必须另有无需 key/plaintext validation 的可执行布局恢复任务。
 
-`firmware-iot-forensics`、`nas-raid-encrypted-storage` 和 `malware-forensics` 仍为 Pending。对应 candidate 必须包含 `current_availability: pending`、candidate skill、可回查 Evidence、`confidence` 和 `required_next_action`。Pending candidate 不是 Route Step、Handoff 或调用记录，不得加入 `visited_skills`。
+`firmware-iot-forensics` 当前已可执行。uncommon 只能生成 `current_availability: executable` 的 firmware route candidate，不能直接调用。candidate 按 8.13 附 bounded regions、结构 Evidence、Artifact、Finding 和 uncommon 本轮 Ledger Event；单个 magic、扩展名、品牌、设备名或熵值不能生成 executable candidate。只有 Router 校验最低输入、Route context、`visited_skills`、hop、limits 和 Gate 后，才能创建正式 firmware Handoff。
+
+`nas-raid-encrypted-storage` 和 `malware-forensics` 仍为 Pending。对应 candidate 必须包含 `current_availability: pending`、candidate skill、可回查 Evidence、`confidence` 和 `required_next_action`。Pending candidate 不是 Route Step、Handoff 或调用记录，不得加入 `visited_skills`。
 
 #### Bounded Router re-entry
 
@@ -2187,7 +2189,7 @@ bounded re-entry 只指 uncommon 发出的单向 Router 重评 Handoff：
 4. `visited_skills`、`hop_count` 和 `routing_policy.max_hops` 合法；
 5. 同一 route 和 evidence scope 未执行过 uncommon → Router re-entry。
 
-没有新 Evidence 时禁止 re-entry。Router 收到 Handoff 时 `visited_skills` 已包含 `uncommon-media-triage`，因此不得再次选择 uncommon；proprietary 输入完整时可选择 `proprietary-format-recovery` 并将其加入 `visited_skills`，输入不足时只能在合法 hop/visited 范围内请求 `large-artifact-strategy` 补充 bounded Evidence，否则返回 `forensic-autopilot`，且不创建半完整 Handoff。
+没有新 Evidence 时禁止 re-entry。Router 收到 Handoff 时 `visited_skills` 已包含 `uncommon-media-triage`，因此不得再次选择 uncommon；proprietary 或 firmware 输入完整时可选择对应消费者并将其加入 `visited_skills`，输入不足时只能在合法 hop/visited 范围内请求 `large-artifact-strategy` 补充 bounded Evidence，否则返回 `forensic-autopilot`，且不创建半完整 Handoff。
 
 普通路由、bounded read，以及显式 `analysis_limits` 或 `implicit-bounded-input` 内的静态结构验证使用 `execution_gate.required=false`。状态改变或授权范围扩张时使用 `execution_gate.required=true`，并填写非空 `reason`；Gate 不使用 `classification_status` 表达状态。
 
@@ -2441,11 +2443,121 @@ key_hypotheses:
 
 #### Route candidates and loop prevention
 
-- firmware、storage 和 malware 保持 Pending。其 route candidate 必须包含 `current_availability: pending`、candidate skill、Evidence 引用、`confidence` 和 `required_next_action`；不得创建 Route Step、Handoff 或 `visited_skills` 条目。
+- firmware 当前已可执行。proprietary 只有生成已验证嵌套固件派生 Artifact，并附可验证 Hash/size/直接来源、container layout、Artifact/Finding 和本轮 Ledger Event 时，才可生成 `current_availability: executable` 的 firmware candidate；proprietary 不直接调用 firmware，必须通过 Router 重评。
+- storage 和 malware 保持 Pending。其 route candidate 必须包含 `current_availability: pending`、candidate skill、Evidence 引用、`confidence` 和 `required_next_action`；不得创建 Route Step、Handoff 或 `visited_skills` 条目。
 - uncommon → Router re-entry 最多一次；Router 选择 proprietary 后加入 `visited_skills`。
 - proprietary 默认返回 autopilot。只有本轮产生新 Artifact 或 Finding 时，才可最多一次返回 Router。
 - proprietary → Router Handoff 必须包含非空 `reentry_reason`、非空 `new_evidence_refs`、本轮新 Ledger Event，以及合法 `hop_count` 和 `routing_policy.max_hops`。
 - Router 重评后不得再次选择 `uncommon-media-triage` 或 `proprietary-format-recovery`。
 - 禁止 uncommon → Router → proprietary → Router → uncommon。
 - 禁止 proprietary → Router → proprietary。
+- 禁止 proprietary → Router → firmware → Router → proprietary。
+- 禁止 firmware → Router → firmware。
+- 禁止 uncommon → Router → firmware → Router → uncommon。
 - 没有其他当前可执行消费者时返回 autopilot。
+
+### 8.13 firmware-iot-forensics
+
+`firmware-iot-forensics` 是 Phase 3 第三个已实现模块。它复用现有 Request Envelope、Response Envelope、Route Record、Artifact Record、Finding Record 和 Ledger Event，不新增 JSON Schema。它只对 Router 批准的 source、bounded regions 和已验证派生 Artifact 做固件 container/layout/filesystem 静态分析，并在明确的 analysis/extraction limits 内执行有限提取。
+
+#### Request payload profile
+
+```yaml
+payload:
+  source_artifact_refs:
+    - artifact-<uuid>
+  candidate_regions: array
+  route_basis: array
+  artifact_refs: array
+  finding_refs: array
+  ledger_event_refs: array
+  analysis_limits: object|null
+  container_hints: array
+  architecture_hints: array
+  filesystem_hints: array
+  partition_hints: array
+  extraction_limits:                 # required for extraction
+    max_depth: integer
+    max_components: integer
+    max_total_extracted_bytes: integer
+    max_single_component_bytes: integer
+    timeout_seconds: integer
+```
+
+Request 约束：
+
+1. `request.context` 必须包含当前 Route Record；同一 route 和 evidence scope 不得再次选择已访问的 firmware Skill。
+2. effective source 必须非空且可解析。二进制或 container 输入必须具有非空 bounded regions；source、offset、length、size 和派生来源关系必须合法。1GB 以上 source 先经过 `large-artifact-strategy`。
+3. Artifact、Finding、Ledger Event 和 route basis 必须可回查。direct route 至少需要两类不同验证机制；扩展名、品牌、设备名、单个 magic、熵值或外部资料不计入该阈值。
+4. uncommon transfer 提供 bounded regions、结构 Evidence 和本轮引用；proprietary transfer 还提供已验证嵌套固件 Artifact、直接来源、完整 Hash 和对应 Evidence。二者都只返回 Router。
+5. `analysis_limits` 复用现有 bounded region profile。有限提取要求 `extraction_limits` 的五个字段全部存在且为正整数；缺少、无效或工具无法保证时，只允许静态识别并设置 `required_next_action`。
+6. 有限提取必须位于批准工作目录，遵守深度、组件数、总输出大小、单组件大小和超时限制。不得路径越界、跟随链接、创建宿主机特殊文件或恢复危险权限。
+
+#### Response payload profile
+
+```yaml
+payload:
+  firmware_assessments: array
+  component_inventory: array
+  filesystem_candidates: array
+  extracted_component_refs: array
+  security_finding_refs: array
+  validation_checks: array
+  counter_evidence: array
+  unresolved_questions: array
+  required_next_action: string|null
+  firmware_status: candidate_only|container_validated|layout_reproduced|filesystem_validated|extraction_reproduced|rejected|bounded_checks_exhausted|unknown
+```
+
+payload 不复制 Finding 对象。`security_finding_refs` 只能引用 Response 顶层 Finding。`component_inventory` 记录 container、partition、filesystem、bootloader、kernel、rootfs 和其他组件的层级、角色及 Evidence；每个派生 Artifact 使用现有 Artifact Record 记录直接来源和完整 Hash，并由 Ledger Event 记录产生或验证动作。
+
+#### Firmware status
+
+`firmware_status` 只允许以下八个值：
+
+| firmware_status | 含义 |
+|---|---|
+| `candidate_only` | 只有固件候选，尚无可复现结构 |
+| `container_validated` | container、header、length、checksum 或标准 parser 得到独立验证 |
+| `layout_reproduced` | partition、segment、table 或组件关系可重复重建 |
+| `filesystem_validated` | 文件系统由 parser 或独立几何检查验证 |
+| `extraction_reproduced` | 有限提取步骤可复现，派生 Artifact 的直接来源已验证，且组件完整内容 Hash 使用 `hash.status: verified` 和非空 `hash.value` |
+| `rejected` | 批准范围内所有相关 Hypothesis 均被明确证伪，且无存活候选 |
+| `bounded_checks_exhausted` | 批准检查全部完成，仍有无法验证或证伪的存活候选 |
+| `unknown` | 输入或 Evidence 不足，或批准检查尚未全部执行 |
+
+每轮只选择一个由当前 Evidence 支持的最高状态。单个 parser 或 Hypothesis 失败不得导致整体 `rejected`；状态依据写入 `investigation_summary` 或 `validation_checks`。`firmware_status` 不得代替 Finding confidence、Route、Handoff 或 Execution Gate 状态。
+
+#### Sensitive material minimum disclosure
+
+- 原始口令、token、私钥和敏感配置不得写入正文；需要保留时写入批准路径中的受保护派生 Artifact。
+- 正文只记录 Artifact 引用、fingerprint 或脱敏摘要；派生 Artifact 仍记录直接来源、完整 Hash 和 Ledger Event。
+
+#### Handoff and transfer chain
+
+允许的正式入口为：
+
+`file-triage` / `large-artifact-strategy` → `forensic-router` → `firmware-iot-forensics`
+
+`uncommon-media-triage` → `forensic-router` → `firmware-iot-forensics`
+
+`uncommon-media-triage` → `forensic-router` → `proprietary-format-recovery` → `forensic-router` → `firmware-iot-forensics`
+
+Router 是唯一消费者决策点。LAS 只提供 bounded regions、signature 和 Evidence；uncommon 提供结构 Evidence 与核心引用；proprietary 还提供已验证嵌套固件 Artifact。Router 验证 source、regions、Route context、limits、Gate、`visited_skills` 和 hop 后才创建完整 Handoff。firmware 完成后默认返回 autopilot。
+
+firmware 只有本轮产生新 Artifact 或 Finding，并出现新的可执行消费者候选时，才可携带 `reentry_reason`、`new_evidence_refs`、本轮 Ledger Event 和合法 hop 最多一次返回 Router。
+
+同一 `route_id` 和 evidence scope 中，Router 不得再次选择 `visited_skills` 中已有的 Skill。明确禁止 proprietary → Router → firmware → Router → proprietary、firmware → Router → firmware，以及 uncommon → Router → firmware → Router → uncommon。没有其他当前可执行消费者时返回 autopilot。
+
+`nas-raid-encrypted-storage` 和 `malware-forensics` 继续保持 Pending，只能写入 `route_candidates`；不得创建到它们的 Route Step、Handoff 或 `visited_skills` 条目。
+
+#### Execution Gate boundary
+
+批准 regions、工作目录和 limits 内的只读识别、静态 parser、组件 Hash、有限提取和目标化静态读取使用 `execution_gate.required=false`。工具不能保证提取边界时不得自动提取。
+
+下列动作必须设置 `execution_gate.required=true` 并填写非空 `reason`：
+
+- 无界递归解包、大范围或全盘 carving、全文件 strings、超出 limits。
+- 安装、联网、在线检索、第三方上传、执行固件内容或动态启动。
+- 修改固件、设备写入、UART/JTAG/刷写、爆破或长时间解密。
+- RAID/LVM 激活、解锁、mount、可写挂载、修改 original Artifact 或写入未批准路径。
