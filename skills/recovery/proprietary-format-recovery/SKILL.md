@@ -172,7 +172,7 @@ Response `payload` 支持：
 - `evidence_refs`
 - `confidence`
 
-原始 key、口令、token、个人数据或敏感明文不得默认写入 Response、Finding 或 Ledger Event 正文。需要保留的原始 material 写入受保护派生 Artifact；Response 只记录 Artifact 引用和 fingerprint。不能仅凭文件名、外部资料或单个明文命中设置 `key_verified`；该状态至少需要两类独立验证依据，例如 transform 后结构闭合与独立 checksum/parser 验证。
+原始 key、口令、recovery key、token、私钥、个人数据、敏感明文和完整敏感配置只能保存在受保护 Artifact，不得写入 Response 正文、Finding、Ledger Event 正文、`investigation_summary`、`required_next_action`、普通 stdout/stderr、日志或摘要。普通输出只记录类型、来源、受保护 Artifact 引用、fingerprint、脱敏摘要和验证结果。工具可能输出完整敏感值时，将原始 stdout/stderr 直接保存为受保护 Artifact，对外暴露或写入普通日志前脱敏；Ledger 只引用该 Artifact 或受控路径，不复制完整值。不能仅凭文件名、外部资料或单个明文命中设置 `key_verified`；该状态至少需要两类独立验证依据，例如 transform 后结构闭合与独立 checksum/parser 验证。
 
 恢复并验证嵌套固件时，按 `docs/data-contracts.md` 8.13 向 Router 传递该派生 Artifact、直接来源、完整 Hash、bounded regions、结构 Evidence、Artifact/Finding 和本轮 Ledger Event。文件名或单个 magic 不足以生成 executable firmware candidate。
 

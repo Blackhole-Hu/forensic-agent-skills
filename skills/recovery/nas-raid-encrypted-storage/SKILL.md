@@ -44,7 +44,7 @@ description: 对 Router 已确认的独立 NAS、多成员 RAID、LVM、ZFS、Bt
 3. 派生 Artifact 的直接来源可逐级回查；Artifact、Finding、Ledger Event 和 route basis 引用均有效。
 4. direct route 至少具有两类相互支持的 Evidence；单个 signature、品牌、扩展名或 parser 成功不满足该要求。
 5. 显式 limits 的适用字段为正整数且可强制；需要 Gate 的动作已经批准。
-6. key material 只来自请求明确提供的受保护 Artifact；正文不含原始密码、恢复密钥或 key。
+6. key material 只来自请求明确提供的受保护 Artifact。原始 key、口令、recovery key、token、私钥、个人数据、敏感明文和完整敏感配置只能保存在受保护 Artifact，不得写入 Response 正文、Finding、Ledger Event 正文、`investigation_summary`、`required_next_action`、普通 stdout/stderr、日志或摘要。普通输出只记录类型、来源、受保护 Artifact 引用、fingerprint、脱敏摘要和验证结果。工具可能输出完整敏感值时，将原始 stdout/stderr 直接保存为受保护 Artifact，对外暴露或写入普通日志前脱敏；Ledger 只引用该 Artifact 或受控路径，不复制完整值。
 
 `analysis_limits` 至少支持：
 
