@@ -12,7 +12,7 @@ The skills are **evidence-first**: every conclusion must cite a file, command ou
 
 - Not a general-purpose coding assistant toolkit.
 - Not a one-click execution framework — the skills define workflows, evidence requirements, and validation steps; concrete tools are selected by the operator or tool-router.
-- Not a malware detonation framework — malware-specific recovery remains Pending in Phase 3 and is not a current executable capability.
+- Not a malware detonation framework — `malware-forensics` is static-first, and any sample execution remains behind an explicit Execution Gate and qualified isolated environment.
 - Not a replacement for forensic tools (Autopsy, Volatility, binwalk, etc.) — the skills orchestrate and validate their output.
 - Not competition-specific — while born from CTF practice, the architecture targets general forensic workflows.
 
@@ -29,7 +29,8 @@ forensic-autopilot        →  orchestrate the full chain
   proprietary-format-recovery → reproduce bounded proprietary layouts/transforms (only after Router decision)
   firmware-iot-forensics → validate firmware containers/filesystems and perform bounded static extraction (only after Router decision)
   nas-raid-encrypted-storage → validate independent storage topology and create bounded read-only recovery views (only after Router decision)
-  [implemented consumers] → server, current Web/Database/Docker, uncommon media triage, proprietary recovery, firmware static analysis, and independent storage recovery
+  malware-forensics     → characterize samples and build evidence-backed behavior hypotheses (only after Router decision)
+  [implemented consumers] → server, current Web/Database/Docker, uncommon media, proprietary, firmware, storage, and malware analysis
   timeline-reconstruction → merge supported server-source events (if needed)
   no-compatible-skill   →  preserve evidence and report planned/unsupported scope
   answer-gate           →  five-step validation before any conclusion is submitted
@@ -38,7 +39,7 @@ forensic-autopilot        →  orchestrate the full chain
 evidence-ledger is written throughout the chain and read by answer-gate/report-writer.
 ```
 
-Current executable scope is Core, Triage (including `uncommon-media-triage`), Server, server-scoped Timeline, bounded `proprietary-format-recovery`, bounded static `firmware-iot-forensics`, and bounded independent `nas-raid-encrypted-storage`. Phase 3 is in progress (4/5): uncommon media triage, proprietary format recovery, firmware IoT forensics, and NAS/RAID/encrypted storage are Implemented; malware recovery remains Pending. Router may select storage directly from evidence-backed file/LAS input or after uncommon, proprietary, or firmware produces a valid candidate; virtualization-bound storage remains in the server cluster chain. Competition remains a planned migration phase and is not a current runtime target.
+Current executable scope is Core, Triage (including `uncommon-media-triage`), Server, server-scoped Timeline, bounded `proprietary-format-recovery`, bounded static `firmware-iot-forensics`, bounded independent `nas-raid-encrypted-storage`, and static-first `malware-forensics`. Phase 3 is complete (5/5): all five modules are Implemented. Router remains the only consumer decision point; ordinary executables do not enter malware analysis without an explicit objective or independent suspicious context, and sample execution remains gated. Competition remains a planned migration phase and is not a current runtime target.
 
 ## Skill Categories
 
@@ -48,7 +49,7 @@ Current executable scope is Core, Triage (including `uncommon-media-triage`), Se
 | **Triage** | `skills/triage/` | File classification, large artifact handling, and uncommon media structure identification |
 | **Server** | `skills/server/` | Server forensics: rebuild, live response, Linux/Web/DB/Docker/cluster |
 | **Timeline** | `skills/timeline/` | Server-scoped event timeline reconstruction |
-| **Recovery** | `skills/recovery/` | Phase 3 bounded proprietary recovery, firmware static analysis, and independent NAS/RAID/encrypted storage recovery (Implemented); malware module (Pending) |
+| **Recovery** | `skills/recovery/` | Phase 3 uncommon format, firmware, storage, and malware analysis modules (Implemented) |
 | **Competition** | `skills/competition/` | Planned Phase 4: CTF and competition-specific output |
 
 ## Recommended Entry Point
@@ -65,7 +66,7 @@ Migrating 41 legacy skills in four phases. See [`docs/migration/old-skills-inven
 |-------|-------|--------|
 | **Phase 1** | Core control loop (9 modules) | Completed |
 | **Phase 2** | Server forensic chain (10 modules) | Completed |
-| **Phase 3** | Uncommon media & recovery (5 modules) | In progress (4/5) |
+| **Phase 3** | Uncommon media & recovery (5 modules) | Completed (5/5) |
 | **Phase 4** | Competition-specific output (2 modules) | Pending |
 
 ## Repository Layout
@@ -85,7 +86,7 @@ forensic-agent-skills/
     ├── triage/
     ├── server/
     ├── timeline/
-    ├── recovery/                       ← proprietary, firmware, and storage recovery Implemented; malware Pending
+    ├── recovery/                       ← proprietary, firmware, storage, and malware modules Implemented
     └── competition/                    ← planned Phase 4; not yet executable
 ```
 
@@ -96,5 +97,5 @@ forensic-agent-skills/
 - [x] Migration inventory (`docs/migration/old-skills-inventory.md`)
 - [x] Phase 1 — Core control loop and review
 - [x] Phase 2 — Server forensic chain
-- [ ] Phase 3 — Uncommon media & recovery — In progress (4/5)
+- [x] Phase 3 — Uncommon media & recovery — Completed (5/5)
 - [ ] Phase 4 — Competition-specific output

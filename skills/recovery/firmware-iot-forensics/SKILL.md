@@ -120,7 +120,7 @@ description: 对 Router 已确认的固件、IoT 镜像、固件 slice 或嵌套
 | container/layout/filesystem | 边界闭合或 parser/独立结构检查一致 | 验证并建立组件清单 |
 | bounded component extraction | 完整 extraction limits、批准工作目录和安全工具 | 有限提取 |
 | 独立 storage candidate | 实际提取的存储镜像、阵列成员或加密卷 Artifact，附 provenance、明确 Hash 状态和本轮 Evidence | 记录 executable candidate，经 Router 重评 |
-| malware candidate | 对应领域 Evidence | 仅记录 Pending route candidate |
+| malware candidate | 独立样本 Artifact，加明确恶意分析目标或独立可疑上下文及本轮 Evidence | 记录 executable candidate，经 Router 重评；普通 ELF/脚本保持 firmware |
 | Evidence 仍不足 | 已保留检查、反证和限制 | 返回 autopilot 并说明下一步 |
 
 ## Evidence Requirements
@@ -128,6 +128,7 @@ description: 对 Router 已确认的固件、IoT 镜像、固件 slice 或嵌套
 - 每个结论成为引用 Artifact 和 Ledger Event 的 Finding。
 - container、region 和组件记录可回查的来源、边界和验证依据。
 - 派生 Artifact 记录直接来源、完整 Hash、保存位置和生成它的 Ledger Event。
+- malware candidate 记录独立样本来源、Hash、目标/可疑上下文和本轮 Evidence；普通 firmware 组件不自动转出。
 - 组件清单保留层级关系、格式/角色 Hypothesis 和反证。
 - 静态检查同时保留成功、失败、未执行原因和未决问题。
 - 外部资料只提供方法线索，结论必须由当前 Artifact 验证。
@@ -145,6 +146,8 @@ Router 是唯一消费者决策点。uncommon、proprietary 和 LAS 只提供 bo
 本 Skill 默认返回 autopilot。只有本轮产生新 Artifact 或 Finding 且出现新的可执行消费者候选时，才可最多一次返回 Router，并提供 `reentry_reason`、非空 `new_evidence_refs`、本轮新 Ledger Event 和合法 hop。Router 不得重选已访问 Skill；禁止 proprietary → Router → firmware → Router → proprietary、firmware → Router → firmware，以及 uncommon → Router → firmware → Router → uncommon。
 
 firmware 只有实际提取出独立存储镜像、阵列成员或加密卷 Artifact，并记录可回查 provenance、明确 Hash 状态、bounded regions、Finding 和本轮 Ledger Event 时，才可形成 executable storage candidate。已物化且在预算内的组件优先 verified Hash；大型、稀疏、流式或未物化 storage 视图允许 `deferred|unavailable`，其中 `deferred` 记录原因。正式后续链路为 `firmware-iot-forensics` → `forensic-router` → `nas-raid-encrypted-storage`；firmware 不直接调用 storage。禁止 firmware → Router → storage → Router → firmware 和 storage → Router → storage。
+
+firmware 只有提取出独立样本 Artifact，并具有明确恶意分析目标或独立可疑上下文时，才可形成 executable malware candidate。正式链路为 `firmware-iot-forensics` → `forensic-router` → `malware-forensics`；firmware 只传递直接来源、Hash 状态和本轮 Evidence，不执行样本或直接调用 malware。禁止 firmware → Router → malware → Router → firmware 和 malware → Router → malware。
 
 ## Execution Gate
 
@@ -188,4 +191,4 @@ firmware 只有实际提取出独立存储镜像、阵列成员或加密卷 Arti
 - 参考 [craigz28/firmwalker](https://github.com/craigz28/firmwalker) 与 [e-m-b-a/emba](https://github.com/e-m-b-a/emba) 的目标化配置、服务、组件和安全弱点检查；结果仍需人工复核。
 - [firmadyne/firmadyne](https://github.com/firmadyne/firmadyne) 用于说明仿真属于独立动态阶段，不在本 Skill 的自动范围内。
 - 仅借鉴公开工作流和工具定位，未复制项目代码。实际工具选择取决于环境与检材，不要求安装全部工具。
-- `nas-raid-encrypted-storage` 已可执行，但只能由 Router 决定；`malware-forensics` 保持 Pending。
+- `nas-raid-encrypted-storage` 与 `malware-forensics` 已可执行，但只能由 Router 决定。

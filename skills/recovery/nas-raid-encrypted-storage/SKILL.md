@@ -134,6 +134,7 @@ description: 对 Router 已确认的独立 NAS、多成员 RAID、LVM、ZFS、Bt
 | platform-bound storage | PVE/Ceph/vSphere/vSAN、VM/container/snapshot 映射、已有 `cluster-virtualization-forensics` Route 或 rebuild plan ownership | 交 server/cluster 链 |
 | insufficient clue only | 品牌、扩展名、设备名、单个 magic 或外部资料 | `candidate_only` 或 `unknown` |
 | readable recovered volume | 新 Artifact/Finding 和本轮 Ledger Event | 返回 Router 选择消费者 |
+| recovered malware sample | 独立样本 Artifact，加明确恶意分析目标或独立可疑上下文 | 记录 executable candidate，经 Router 重评；普通 executable 不自动转出 |
 | bounded checks remain unresolved | 已保留检查、反证和限制 | 返回 autopilot |
 
 ## Evidence Requirements
@@ -143,6 +144,7 @@ description: 对 Router 已确认的独立 NAS、多成员 RAID、LVM、ZFS、Bt
 - `layer_map` 和拓扑 Hypothesis 保留成员关系、缺失项、支持 Evidence、冲突 Evidence 和置信度。
 - assembly-manifest 描述多成员拓扑与 provenance，使用完整 verified Hash，但不是虚拟卷的直接字节父 Artifact。
 - 已物化且在读取预算内的派生文件优先使用 verified Hash；大型、稀疏、流式或未物化视图可用 `deferred`（含 `deferred_reason`）或 `unavailable`。Finding 和 route basis 明示限制，region/member Hash 不得冒充虚拟卷完整 Hash。
+- malware candidate 记录独立样本 Artifact、直接来源、Hash 状态、目标/可疑上下文和本轮 Evidence；普通 executable 不自动进入 malware。
 - key material 采用最小披露；外部资料只作方法提示，当前 Artifact 必须独立验证。
 
 ## Handoff
@@ -160,7 +162,9 @@ Router 是唯一消费者决策点。上游只提供 candidate、bounded Evidenc
 
 本 Skill 默认返回 autopilot。Router re-entry 最多一次，且必须包含 `reentry_reason`、非空 `new_evidence_refs`、本轮新 Artifact 或 Finding、本轮新 Ledger Event，以及合法 hop。Router 不得重选同一 route/evidence scope 的已访问 Skill。
 
-明确禁止 storage → Router → storage、storage → Router → proprietary → Router → storage、uncommon → Router → storage → Router → uncommon、proprietary → Router → storage → Router → proprietary，以及 firmware → Router → storage → Router → firmware。`malware-forensics` 仍为 Pending，不得获得 Route Step、Handoff 或 `visited_skills` 条目。
+storage 只有恢复出独立样本 Artifact，并具有明确恶意分析目标或独立可疑上下文时，才可形成 executable malware candidate。正式链路为 `nas-raid-encrypted-storage` → `forensic-router` → `malware-forensics`；storage 只传递直接来源、Hash 状态和本轮 Evidence，不执行或直接调用 malware。
+
+明确禁止 storage → Router → storage、storage → Router → proprietary → Router → storage、uncommon → Router → storage → Router → uncommon、proprietary → Router → storage → Router → proprietary、firmware → Router → storage → Router → firmware、storage → Router → malware → Router → storage，以及 malware → Router → malware。
 
 ## Execution Gate
 
